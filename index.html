@@ -87,6 +87,8 @@
     <div class="waiting-pip"></div>
   </div>
   <div id="waiting-status">1 / 4 joueurs connectés</div>
+  <button id="start-btn" onclick="forceStart()" style="display:none; background:#1D9E75; border:none; border-radius:12px; padding:14px 24px; color:#fff; font-size:15px; font-weight:600; cursor:pointer; margin-top:8px;">Tout le monde est là!</button>
+  <div style="font-size:11px; color:#444;" id="start-hint"></div>
 </div>
 
 <!-- GAME -->
@@ -232,6 +234,12 @@
         pips.forEach((p, i) => p.classList.toggle("joined", i < members));
         document.getElementById("waiting-status").textContent = members + " / 4 joueurs connectés";
 
+        // Affiche le bouton dès que 2+ joueurs sont là
+        if (members >= 2) {
+          document.getElementById("start-btn").style.display = "block";
+          document.getElementById("start-hint").textContent  = "ou attends que 4 joueurs rejoignent";
+        }
+
         if (status === "Matched") {
           clearInterval(pollTimer);
           matchId = data.MatchId;
@@ -247,6 +255,25 @@
         if (count > 10) { clearInterval(pollTimer); show("screen-join"); setStatus("Erreur réseau."); }
       }
     }, 2000);
+  }
+
+  // ---- FORCE START ----
+  async function forceStart() {
+    clearInterval(pollTimer);
+    document.getElementById("start-btn").style.display   = "none";
+    document.getElementById("waiting-status").textContent = "Démarrage...";
+
+    try {
+      // Annule le ticket et démarre le jeu avec le ticketId comme matchId
+      await pf("/Match/CancelMatchmakingTicket", {
+        QueueName: QUEUE,
+        TicketId: ticketId
+      }, "entity");
+    } catch(e) {}
+
+    // Utilise le ticketId comme room ID partagé
+    matchId = "room_" + ticketId.slice(-8);
+    await startGame(null);
   }
 
   // ---- 4. MATCH TROUVÉ ----
