@@ -194,17 +194,14 @@
   }
 
 async function onMatched(members) {
-    // Écrit les données en PUBLIC — tout le monde peut lire
     await pf("/Client/UpdateUserData", {
         Data: {
             activeMatchId: matchId,
-            playerName:    playerName
+            playerName:    playerName,
+            ["player_" + playFabId]: JSON.stringify({ name: playerName, joinedAt: Date.now() })
         },
         Permission: "Public"
     }, "session");
-
-    // Affiche le PlayFabId pour Unity
-    console.log("TON PLAYFAB ID: " + playFabId);
 
     showReady(members);
 }
