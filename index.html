@@ -8,52 +8,51 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
     .container { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 360px; padding: 32px 24px; }
-    h1 { font-size: 26px; font-weight: 700; color: #5dcaa5; text-align: center; margin-bottom: 4px; }
+    h1 { font-size: 26px; font-weight: 700; color: #5dcaa5; text-align: center; }
+    p  { font-size: 13px; color: #555; text-align: center; line-height: 1.6; }
     .input-label { font-size: 11px; color: #555; letter-spacing: 0.08em; }
     input { background: #0f3460; border: 1px solid #1d4a8a; border-radius: 12px; padding: 14px 16px; font-size: 16px; color: #fff; width: 100%; outline: none; }
     input:focus { border-color: #5dcaa5; }
     input::placeholder { color: #444; }
-    .code { letter-spacing: 6px; text-transform: uppercase; font-size: 20px; text-align: center; }
     button { background: #1D9E75; border: none; border-radius: 12px; padding: 15px; width: 100%; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 4px; }
     button:disabled { opacity: 0.4; }
     button:active { opacity: 0.85; }
     .status { font-size: 12px; color: #888; text-align: center; min-height: 18px; }
-    .success { color: #5dcaa5; font-size: 14px; text-align: center; font-weight: 500; }
+    .spinner { width: 32px; height: 32px; border: 3px solid #1d4a8a; border-top-color: #5dcaa5; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .pips { display: flex; gap: 10px; justify-content: center; }
+    .pip { width: 12px; height: 12px; border-radius: 50%; background: #1d4a8a; transition: background 0.3s; }
+    .pip.on { background: #5dcaa5; }
+    .big-btn { background: #534AB7; border: none; border-radius: 12px; padding: 15px; width: 100%; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
+    .big-btn:active { opacity: 0.85; }
+    .success { color: #5dcaa5; font-size: 15px; text-align: center; font-weight: 600; }
   </style>
 </head>
 <body>
-<div class="container">
-  <h1>Alerte Magma</h1>
-
-  <span class="input-label">TON NOM</span>
-  <input id="name" placeholder="ex: Alex" maxlength="16" oninput="check()">
-
-  <span class="input-label">ROOM ID</span>
-  <input id="code" class="code" placeholder="XXXX" maxlength="4" oninput="check()">
-
-  <button id="btn" onclick="join()" disabled>Rejoindre</button>
-  <div class="status" id="status"></div>
-</div>
+<div class="container" id="root"></div>
 
 <script>
   const TITLE_ID = "7F2D7";
   const BASE     = "https://7F2D7.playfabapi.com";
+  const QUEUE    = "alertemagma_game";
+
   let sessionTicket = "";
+  let entityToken   = "";
+  let entityId      = "";
   let playFabId     = "";
+  let playerName    = "";
+  let ticketId      = "";
+  let matchId       = "";
+  let pollTimer     = null;
 
   async function pf(endpoint, body, auth) {
     const headers = { "Content-Type": "application/json" };
-    if (auth) headers["X-Authorization"] = sessionTicket;
+    if (auth === "session") headers["X-Authorization"]  = sessionTicket;
+    if (auth === "entity")  headers["X-EntityToken"]    = entityToken;
     const res  = await fetch(BASE + endpoint, { method: "POST", headers, body: JSON.stringify(body) });
     const json = await res.json();
     if (json.code !== 200) throw new Error(json.errorMessage || "Erreur PlayFab");
     return json.data;
-  }
-
-  function check() {
-    const ok = document.getElementById("name").value.trim().length >= 2
-            && document.getElementById("code").value.trim().length === 4;
-    document.getElementById("btn").disabled = !ok;
   }
 
   function getDeviceId() {
@@ -62,48 +61,192 @@
     return id;
   }
 
-  function setStatus(msg) { document.getElementById("status").textContent = msg; }
+  function render(html) { document.getElementById("root").innerHTML = html; }
+  function setStatus(msg) { const el = document.getElementById("status"); if (el) el.textContent = msg; }
 
-  async function join() {
-    const name = document.getElementById("name").value.trim();
-    const code = document.getElementById("code").value.trim().toUpperCase();
+  // ---- ÉCRAN 1: NOM ----
+  function showName() {
+    render(`
+      <h1>Alerte Magma</h1>
+      <span class="input-label">TON NOM</span>
+      <input id="name" placeholder="ex: Alex" maxlength="16" oninput="document.getElementById('btn').disabled=this.value.trim().length<2">
+      <button id="btn" onclick="doJoin()" disabled>Trouver une partie</button>
+      <div class="status" id="status"></div>
+    `);
+  }
+
+  // ---- LOGIN + ANNULE VIEUX TICKETS + CRÉE TICKET ----
+  async function doJoin() {
+    playerName = document.getElementById("name").value.trim();
     document.getElementById("btn").disabled = true;
     setStatus("Connexion...");
 
     try {
       // Login
       const login = await pf("/Client/LoginWithCustomID", {
-        CustomId: getDeviceId(), CreateAccount: true, TitleId: TITLE_ID
+        CustomId: getDeviceId(), CreateAccount: true, TitleId: TITLE_ID,
+        InfoRequestParameters: { GetEntityToken: true }
       });
       sessionTicket = login.SessionTicket;
       playFabId     = login.PlayFabId;
+      entityToken   = login.EntityToken.EntityToken;
+      entityId      = login.EntityToken.Entity.Id;
 
-      // Rejoindre le groupe
-      try {
-        await pf("/Client/AddSharedGroupMembers", {
-          SharedGroupId: code, PlayFabIds: [playFabId]
-        }, true);
-      } catch(e) {}
+      setStatus("Nettoyage des anciens tickets...");
+      await cancelOldTickets();
 
-      // Écrire son nom dans la room
-      await pf("/Client/UpdateSharedGroupData", {
-        SharedGroupId: code,
-        Data: {
-          ["player_" + playFabId]: JSON.stringify({ name, joinedAt: Date.now() })
-        }
-      }, true);
-
-      setStatus("");
-      document.querySelector(".container").innerHTML =
-        `<h1>Alerte Magma</h1>
-         <div class="success">Connecté à la room<br><strong>${code}</strong></div>
-         <div class="status">En attente du début de la partie...</div>`;
+      setStatus("Recherche une partie...");
+      await createTicket();
 
     } catch(e) {
       setStatus("Erreur: " + e.message);
       document.getElementById("btn").disabled = false;
     }
   }
+
+  async function cancelOldTickets() {
+    try {
+      const result = await pf("/Match/ListMatchmakingTicketsForPlayer", {
+        QueueName: QUEUE,
+        Entity: { Id: entityId, Type: "title_player_account" }
+      }, "entity");
+
+      if (result.TicketIds && result.TicketIds.length > 0) {
+        for (const id of result.TicketIds) {
+          try {
+            await pf("/Match/CancelMatchmakingTicket", {
+              QueueName: QUEUE, TicketId: id
+            }, "entity");
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
+  }
+
+  async function createTicket() {
+    const data = await pf("/Match/CreateMatchmakingTicket", {
+      QueueName: QUEUE,
+      GiveUpAfterSeconds: 120,
+      Creator: {
+        Entity: { Id: entityId, Type: "title_player_account" },
+        Attributes: { DataObject: { name: playerName } }
+      }
+    }, "entity");
+
+    ticketId = data.TicketId;
+    showWaiting(1);
+    pollTicket();
+  }
+
+  // ---- ÉCRAN 2: ATTENTE ----
+  function showWaiting(count) {
+    render(`
+      <h1>Alerte Magma</h1>
+      <p>Salut <strong style="color:#5dcaa5">${playerName}</strong>! En attente de joueurs...</p>
+      <div class="spinner"></div>
+      <div class="pips">
+        <div class="pip ${count>=1?'on':''}"></div>
+        <div class="pip ${count>=2?'on':''}"></div>
+        <div class="pip ${count>=3?'on':''}"></div>
+        <div class="pip ${count>=4?'on':''}"></div>
+      </div>
+      <div class="status" id="status">${count} / 4 joueurs</div>
+      <button class="big-btn" id="force-btn" style="display:none" onclick="forceStart()">Tout le monde est là!</button>
+    `);
+  }
+
+  // ---- POLL TICKET ----
+  function pollTicket() {
+    pollTimer = setInterval(async () => {
+      try {
+        const data    = await pf("/Match/GetMatchmakingTicket", {
+          QueueName: QUEUE, TicketId: ticketId, EscapeObject: false
+        }, "entity");
+
+        const members = data.Members ? data.Members.length : 1;
+        const status  = data.Status;
+
+        // Update pips
+        const pips = document.querySelectorAll(".pip");
+        pips.forEach((p, i) => p.classList.toggle("on", i < members));
+        setStatus(members + " / 4 joueurs");
+
+        // Affiche bouton si 2+ joueurs
+        const btn = document.getElementById("force-btn");
+        if (btn && members >= 2) btn.style.display = "block";
+
+        if (status === "Matched") {
+          clearInterval(pollTimer);
+          matchId = data.MatchId;
+          await onMatched(data.Members);
+        }
+
+      } catch(e) {}
+    }, 2000);
+  }
+
+  // ---- FORCE START ----
+  async function forceStart() {
+    clearInterval(pollTimer);
+    setStatus("Démarrage...");
+    document.getElementById("force-btn").style.display = "none";
+
+    try {
+      await pf("/Match/CancelMatchmakingTicket", {
+        QueueName: QUEUE, TicketId: ticketId
+      }, "entity");
+    } catch(e) {}
+
+    // Utilise ticketId comme room ID
+    matchId = ticketId.replace(/-/g, "").slice(0, 12);
+    await onMatched(null);
+  }
+
+  // ---- MATCH TROUVÉ ----
+  async function onMatched(members) {
+    // Écrit le matchId dans UserData pour que Unity le trouve
+    try {
+      await pf("/Client/UpdateUserData", {
+        Data: { activeGameCode: matchId }
+      }, "session");
+    } catch(e) {}
+
+    // Écrit le joueur dans le Shared Group
+    try {
+      await pf("/Client/CreateSharedGroup", { SharedGroupId: matchId }, "session");
+    } catch(e) {}
+
+    try {
+      await pf("/Client/UpdateSharedGroupData", {
+        SharedGroupId: matchId,
+        Data: {
+          ["player_" + playFabId]: JSON.stringify({ name: playerName, joinedAt: Date.now() })
+        }
+      }, "session");
+    } catch(e) {}
+
+    showReady(members);
+  }
+
+  // ---- ÉCRAN 3: PRÊT ----
+  function showReady(members) {
+    let playerNames = "";
+    if (members) {
+      members.forEach(m => {
+        const name = m.Attributes?.DataObject?.name || "Joueur";
+        playerNames += `<div style="font-size:13px;color:#888;text-align:center;">${name}</div>`;
+      });
+    }
+
+    render(`
+      <h1>Alerte Magma</h1>
+      <div class="success">Partie trouvée!</div>
+      ${playerNames}
+      <div class="status">En attente du début...</div>
+    `);
+  }
+
+  showName();
 </script>
 </body>
 </html>
