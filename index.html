@@ -26,15 +26,18 @@
     .big-btn { background: #534AB7; border: none; border-radius: 12px; padding: 15px; width: 100%; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
     .big-btn:active { opacity: 0.85; }
     .success { color: #5dcaa5; font-size: 15px; text-align: center; font-weight: 600; }
+    .players-list { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+    .player-row { background: #0f3460; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #aaa; text-align: center; }
   </style>
 </head>
 <body>
 <div class="container" id="root"></div>
 
 <script>
-  const TITLE_ID = "7F2D7";
-  const BASE     = "https://7F2D7.playfabapi.com";
-  const QUEUE    = "alertemagma_game";
+  const TITLE_ID     = "7F2D7";
+  const BASE         = "https://7F2D7.playfabapi.com";
+  const QUEUE        = "alertemagma_game";
+  const UNITY_BRIDGE = "UNITY_BRIDGE"; // groupe fixe que Unity lit toujours
 
   let sessionTicket = "";
   let entityToken   = "";
@@ -47,8 +50,8 @@
 
   async function pf(endpoint, body, auth) {
     const headers = { "Content-Type": "application/json" };
-    if (auth === "session") headers["X-Authorization"]  = sessionTicket;
-    if (auth === "entity")  headers["X-EntityToken"]    = entityToken;
+    if (auth === "session") headers["X-Authorization"] = sessionTicket;
+    if (auth === "entity")  headers["X-EntityToken"]   = entityToken;
     const res  = await fetch(BASE + endpoint, { method: "POST", headers, body: JSON.stringify(body) });
     const json = await res.json();
     if (json.code !== 200) throw new Error(json.errorMessage || "Erreur PlayFab");
@@ -69,20 +72,20 @@
     render(`
       <h1>Alerte Magma</h1>
       <span class="input-label">TON NOM</span>
-      <input id="name" placeholder="ex: Alex" maxlength="16" oninput="document.getElementById('btn').disabled=this.value.trim().length<2">
+      <input id="name" placeholder="ex: Alex" maxlength="16"
+        oninput="document.getElementById('btn').disabled=this.value.trim().length<2">
       <button id="btn" onclick="doJoin()" disabled>Trouver une partie</button>
       <div class="status" id="status"></div>
     `);
   }
 
-  // ---- LOGIN + ANNULE VIEUX TICKETS + CRÉE TICKET ----
+  // ---- LOGIN ----
   async function doJoin() {
     playerName = document.getElementById("name").value.trim();
     document.getElementById("btn").disabled = true;
     setStatus("Connexion...");
 
     try {
-      // Login
       const login = await pf("/Client/LoginWithCustomID", {
         CustomId: getDeviceId(), CreateAccount: true, TitleId: TITLE_ID,
         InfoRequestParameters: { GetEntityToken: true }
@@ -94,7 +97,6 @@
 
       setStatus("Nettoyage des anciens tickets...");
       await cancelOldTickets();
-
       setStatus("Recherche une partie...");
       await createTicket();
 
@@ -110,14 +112,9 @@
         QueueName: QUEUE,
         Entity: { Id: entityId, Type: "title_player_account" }
       }, "entity");
-
       if (result.TicketIds && result.TicketIds.length > 0) {
         for (const id of result.TicketIds) {
-          try {
-            await pf("/Match/CancelMatchmakingTicket", {
-              QueueName: QUEUE, TicketId: id
-            }, "entity");
-          } catch(e) {}
+          try { await pf("/Match/CancelMatchmakingTicket", { QueueName: QUEUE, TicketId: id }, "entity"); } catch(e) {}
         }
       }
     } catch(e) {}
@@ -132,7 +129,6 @@
         Attributes: { DataObject: { name: playerName } }
       }
     }, "entity");
-
     ticketId = data.TicketId;
     showWaiting(1);
     pollTicket();
@@ -151,7 +147,9 @@
         <div class="pip ${count>=4?'on':''}"></div>
       </div>
       <div class="status" id="status">${count} / 4 joueurs</div>
-      <button class="big-btn" id="force-btn" style="display:none" onclick="forceStart()">Tout le monde est là!</button>
+      <button class="big-btn" id="force-btn" style="display:none" onclick="forceStart()">
+        Tout le monde est là!
+      </button>
     `);
   }
 
@@ -166,12 +164,9 @@
         const members = data.Members ? data.Members.length : 1;
         const status  = data.Status;
 
-        // Update pips
-        const pips = document.querySelectorAll(".pip");
-        pips.forEach((p, i) => p.classList.toggle("on", i < members));
+        document.querySelectorAll(".pip").forEach((p, i) => p.classList.toggle("on", i < members));
         setStatus(members + " / 4 joueurs");
 
-        // Affiche bouton si 2+ joueurs
         const btn = document.getElementById("force-btn");
         if (btn && members >= 2) btn.style.display = "block";
 
@@ -180,7 +175,6 @@
           matchId = data.MatchId;
           await onMatched(data.Members);
         }
-
       } catch(e) {}
     }, 2000);
   }
@@ -188,40 +182,36 @@
   // ---- FORCE START ----
   async function forceStart() {
     clearInterval(pollTimer);
-    setStatus("Démarrage...");
     document.getElementById("force-btn").style.display = "none";
+    setStatus("Démarrage...");
 
     try {
-      await pf("/Match/CancelMatchmakingTicket", {
-        QueueName: QUEUE, TicketId: ticketId
-      }, "entity");
+      await pf("/Match/CancelMatchmakingTicket", { QueueName: QUEUE, TicketId: ticketId }, "entity");
     } catch(e) {}
 
-    // Utilise ticketId comme room ID
     matchId = ticketId.replace(/-/g, "").slice(0, 12);
     await onMatched(null);
   }
 
   // ---- MATCH TROUVÉ ----
   async function onMatched(members) {
-    // Écrit le matchId dans UserData pour que Unity le trouve
-    try {
-      await pf("/Client/UpdateUserData", {
-        Data: { activeGameCode: matchId }
-      }, "session");
-    } catch(e) {}
+    // 1. Crée le Shared Group pour la partie
+    try { await pf("/Client/CreateSharedGroup", { SharedGroupId: matchId }, "session"); } catch(e) {}
 
-    // Écrit le joueur dans le Shared Group
-    try {
-      await pf("/Client/CreateSharedGroup", { SharedGroupId: matchId }, "session");
-    } catch(e) {}
-
+    // 2. Écrit le nom du joueur dans la room
     try {
       await pf("/Client/UpdateSharedGroupData", {
         SharedGroupId: matchId,
-        Data: {
-          ["player_" + playFabId]: JSON.stringify({ name: playerName, joinedAt: Date.now() })
-        }
+        Data: { ["player_" + playFabId]: JSON.stringify({ name: playerName, joinedAt: Date.now() }) }
+      }, "session");
+    } catch(e) {}
+
+    // 3. Écrit le matchId dans UNITY_BRIDGE — Unity lit toujours ici
+    try { await pf("/Client/CreateSharedGroup", { SharedGroupId: UNITY_BRIDGE }, "session"); } catch(e) {}
+    try {
+      await pf("/Client/UpdateSharedGroupData", {
+        SharedGroupId: UNITY_BRIDGE,
+        Data: { activeMatchId: matchId }
       }, "session");
     } catch(e) {}
 
@@ -230,19 +220,20 @@
 
   // ---- ÉCRAN 3: PRÊT ----
   function showReady(members) {
-    let playerNames = "";
+    let rows = "";
     if (members) {
       members.forEach(m => {
-        const name = m.Attributes?.DataObject?.name || "Joueur";
-        playerNames += `<div style="font-size:13px;color:#888;text-align:center;">${name}</div>`;
+        const n = m.Attributes?.DataObject?.name || "Joueur";
+        rows += `<div class="player-row">${n}</div>`;
       });
+    } else {
+      rows = `<div class="player-row">${playerName}</div>`;
     }
-
     render(`
       <h1>Alerte Magma</h1>
       <div class="success">Partie trouvée!</div>
-      ${playerNames}
-      <div class="status">En attente du début...</div>
+      <div class="players-list">${rows}</div>
+      <div class="status">En attente du début de la partie...</div>
     `);
   }
 
