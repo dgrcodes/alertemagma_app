@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>Card Game</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, sans-serif; min-height: 100vh; }
+
+    #screen-join, #screen-game { padding: 24px 20px; max-width: 400px; margin: 0 auto; }
+
+    /* JOIN SCREEN */
+    #screen-join { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; }
+    #screen-join h1 { font-size: 24px; font-weight: 600; color: #5dcaa5; }
+    #screen-join p { font-size: 14px; color: #888; text-align: center; }
+    #room-input { background: #0f3460; border: 1px solid #1d4a8a; border-radius: 12px; padding: 14px 16px; font-size: 20px; color: #fff; text-align: center; letter-spacing: 8px; width: 100%; outline: none; }
+    #room-input::placeholder { letter-spacing: 2px; color: #444; font-size: 14px; }
+    #name-input { background: #0f3460; border: 1px solid #1d4a8a; border-radius: 12px; padding: 14px 16px; font-size: 16px; color: #fff; text-align: center; width: 100%; outline: none; }
+    #join-btn { background: #1D9E75; border: none; border-radius: 12px; padding: 16px; width: 100%; color: #fff; font-size: 16px; font-weight: 600; cursor: pointer; }
+    #join-btn:active { opacity: 0.8; }
+    #join-status { font-size: 13px; color: #888; text-align: center; min-height: 20px; }
+
+    /* GAME SCREEN */
+    #screen-game { display: none; }
+    .game-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .room-pill { background: #0f3460; color: #5dcaa5; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; }
+    .player-pill { background: #0f3460; color: #AFA9EC; font-size: 12px; font-weight: 600; padding: 6px 12px; border-radius: 20px; }
+
+    .mana-row { display: flex; align-items: center; gap: 6px; margin-bottom: 12px; }
+    .mana-pip { width: 16px; height: 16px; border-radius: 50%; background: #1d4a8a; transition: background 0.3s; }
+    .mana-pip.full { background: #7F77DD; }
+    .mana-label { font-size: 11px; color: #666; margin-left: 4px; }
+
+    .turn-box { background: #0f3460; border-radius: 10px; padding: 10px 14px; font-size: 12px; color: #888; text-align: center; margin-bottom: 16px; transition: all 0.3s; }
+    .turn-box.your-turn { background: #0a2a1a; color: #5dcaa5; font-weight: 600; }
+
+    .hand-label { font-size: 10px; color: #555; letter-spacing: 0.1em; margin-bottom: 10px; }
+
+    .cards-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+    .card { background: #0f3460; border: 1.5px solid #1d4a8a; border-radius: 12px; padding: 12px 8px; text-align: center; cursor: pointer; transition: transform 0.15s, border-color 0.15s, background 0.15s; user-select: none; }
+    .card:active { transform: scale(0.93); }
+    .card.selected { border-color: #5dcaa5; background: #0a2a3a; transform: translateY(-4px); }
+    .card.played { opacity: 0.25; pointer-events: none; }
+    .card.cant-afford { opacity: 0.4; }
+    .card-icon { font-size: 22px; margin-bottom: 6px; }
+    .card-name { font-size: 11px; font-weight: 600; color: #e0e0e0; margin-bottom: 2px; }
+    .card-stat { font-size: 10px; color: #888; }
+    .card-cost { font-size: 9px; background: #1d4a8a; color: #AFA9EC; border-radius: 8px; padding: 2px 6px; display: inline-block; margin-top: 4px; }
+
+    #play-btn { background: #1D9E75; border: none; border-radius: 12px; padding: 16px; width: 100%; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; opacity: 0.35; transition: opacity 0.2s; margin-bottom: 12px; }
+    #play-btn.ready { opacity: 1; }
+    #play-btn:active { transform: scale(0.98); }
+
+    .toast { background: #1D9E75; color: #fff; font-size: 13px; text-align: center; padding: 10px; border-radius: 10px; margin-bottom: 12px; display: none; }
+    .toast.show { display: block; }
+
+    .log { background: #0f3460; border-radius: 10px; padding: 10px 12px; font-size: 11px; color: #666; min-height: 40px; line-height: 1.7; }
+    .log span { color: #5dcaa5; }
+  </style>
+</head>
+<body>
+
+<!-- JOIN SCREEN -->
+<div id="screen-join">
+  <h1>Card Game</h1>
+  <p>Scanne le QR code ou entre le code de la room</p>
+  <input id="name-input" placeholder="Ton nom (ex: Alex)" maxlength="12">
+  <input id="room-input" placeholder="CODE" maxlength="4" oninput="this.value=this.value.toUpperCase()">
+  <button id="join-btn" onclick="joinRoom()">Rejoindre</button>
+  <div id="join-status"></div>
+</div>
+
+<!-- GAME SCREEN -->
+<div id="screen-game">
+  <div class="game-header">
+    <div class="room-pill" id="room-label">Room ----</div>
+    <div class="player-pill" id="player-label">...</div>
+  </div>
+
+  <div class="mana-row" id="mana-row">
+    <div class="mana-pip full"></div>
+    <div class="mana-pip full"></div>
+    <div class="mana-pip full"></div>
+    <div class="mana-pip"></div>
+    <div class="mana-pip"></div>
+    <span class="mana-label" id="mana-label">3 / 5 mana</span>
+  </div>
+
+  <div class="turn-box" id="turn-box">En attente...</div>
+
+  <div class="hand-label">TA MAIN</div>
+
+  <div class="cards-grid" id="cards-grid"></div>
+
+  <div class="toast" id="toast">Carte envoyée!</div>
+
+  <button id="play-btn" onclick="playCard()">Choisis une carte</button>
+
+  <div class="log" id="log">En attente d'actions...</div>
+</div>
+
+<!-- PlayFab JS SDK -->
+<script src="https://download.playfab.com/PlayFabClientApi.js"></script>
+
+<script>
+  // ---- CONFIG ----
+  const TITLE_ID = "7F2D7"; // ton Title ID PlayFab
+
+  const CARDS = [
+    { id: "fire_bolt",  name: "Fire Bolt",  icon: "🔥", stat: "35 dmg",  cost: 2 },
+    { id: "shield",     name: "Shield",     icon: "🛡", stat: "+20 def", cost: 1 },
+    { id: "heal",       name: "Heal",       icon: "💚", stat: "+25 hp",  cost: 2 },
+    { id: "ice_spike",  name: "Ice Spike",  icon: "❄️",  stat: "20 dmg",  cost: 1 },
+    { id: "bomb",       name: "Bomb",       icon: "💣", stat: "50 dmg",  cost: 3 },
+    { id: "lightning",  name: "Lightning",  icon: "⚡", stat: "40 dmg",  cost: 3 },
+  ];
+
+  // ---- STATE ----
+  let roomCode = "";
+  let playerName = "";
+  let playFabId = "";
+  let selectedCard = -1;
+  let myTurn = false;
+  let mana = 3;
+  let maxMana = 5;
+  let playedCards = [];
+  let pollInterval = null;
+  let lastAction = "";
+
+  // ---- AUTO-JOIN via URL param (?room=4821) ----
+  window.onload = () => {
+    PlayFab.settings.titleId = TITLE_ID;
+    const params = new URLSearchParams(window.location.search);
+    const roomParam = params.get("room");
+    if (roomParam) {
+      document.getElementById("room-input").value = roomParam.toUpperCase();
+    }
+  };
+
+  // ---- JOIN ----
+  function joinRoom() {
+    playerName = document.getElementById("name-input").value.trim();
+    roomCode = document.getElementById("room-input").value.trim().toUpperCase();
+
+    if (!playerName) { setStatus("Entre ton nom!"); return; }
+    if (roomCode.length !== 4) { setStatus("Le code doit avoir 4 caractères"); return; }
+
+    setStatus("Connexion à PlayFab...");
+
+    const deviceId = getDeviceId();
+
+    PlayFabClientAPI.LoginWithCustomID({
+      CustomId: deviceId,
+      CreateAccount: true,
+      InfoRequestParameters: { GetPlayerProfile: true }
+    }, (result) => {
+      playFabId = result.data.PlayFabId;
+      setStatus("Connecté! Rejoins la room...");
+      joinSharedGroup();
+    }, (error) => {
+      setStatus("Erreur login: " + error.errorMessage);
+    });
+  }
+
+  function joinSharedGroup() {
+    PlayFabClientAPI.AddSharedGroupMembers({
+      SharedGroupId: roomCode,
+      PlayFabIds: [playFabId]
+    }, () => {
+      startGame();
+    }, (error) => {
+      // Si déjà membre ou room existe, on entre quand même
+      startGame();
+    });
+  }
+
+  // ---- GAME ----
+  function startGame() {
+    document.getElementById("screen-join").style.display = "none";
+    document.getElementById("screen-game").style.display = "block";
+    document.getElementById("room-label").textContent = "Room " + roomCode;
+    document.getElementById("player-label").textContent = playerName;
+    renderCards();
+    updateMana();
+    startPolling();
+    log("Connecté à la room <span>" + roomCode + "</span> en tant que <span>" + playerName + "</span>");
+  }
+
+  function renderCards() {
+    const grid = document.getElementById("cards-grid");
+    grid.innerHTML = "";
+    CARDS.forEach((card, i) => {
+      const div = document.createElement("div");
+      div.className = "card" + (playedCards.includes(i) ? " played" : "") + (card.cost > mana ? " cant-afford" : "");
+      div.id = "card-" + i;
+      div.innerHTML = `
+        <div class="card-icon">${card.icon}</div>
+        <div class="card-name">${card.name}</div>
+        <div class="card-stat">${card.stat}</div>
+        <div class="card-cost">${card.cost} mana</div>
+      `;
+      div.onclick = () => selectCard(i);
+      grid.appendChild(div);
+    });
+  }
+
+  function selectCard(i) {
+    if (!myTurn) return;
+    if (playedCards.includes(i)) return;
+    if (CARDS[i].cost > mana) return;
+
+    document.querySelectorAll(".card").forEach(c => c.classList.remove("selected"));
+    document.getElementById("card-" + i).classList.add("selected");
+    selectedCard = i;
+
+    const btn = document.getElementById("play-btn");
+    btn.textContent = "Jouer " + CARDS[i].name;
+    btn.classList.add("ready");
+  }
+
+  function playCard() {
+    if (selectedCard === -1 || !myTurn) return;
+
+    const card = CARDS[selectedCard];
+
+    // Envoie à PlayFab
+    PlayFabClientAPI.UpdateSharedGroupData({
+      SharedGroupId: roomCode,
+      Data: {
+        lastAction: JSON.stringify({
+          playerName: playerName,
+          playFabId: playFabId,
+          cardId: card.id,
+          cardIndex: selectedCard,
+          cardName: card.name,
+          timestamp: Date.now()
+        })
+      }
+    }, () => {
+      // succès
+      playedCards.push(selectedCard);
+      mana -= card.cost;
+      updateMana();
+      renderCards();
+
+      document.getElementById("toast").classList.add("show");
+      setTimeout(() => document.getElementById("toast").classList.remove("show"), 2000);
+
+      document.getElementById("turn-box").className = "turn-box";
+      document.getElementById("turn-box").textContent = "Carte envoyée! En attente...";
+      document.getElementById("play-btn").textContent = "Choisis une carte";
+      document.getElementById("play-btn").classList.remove("ready");
+
+      log("<span>" + playerName + "</span> joue <span>" + card.name + "</span>");
+      myTurn = false;
+      selectedCard = -1;
+
+    }, (error) => {
+      log("Erreur: " + error.errorMessage);
+    });
+  }
+
+  // ---- POLL (Unity écrit aussi ici pour signaler les tours) ----
+  function startPolling() {
+    pollInterval = setInterval(() => {
+      PlayFabClientAPI.GetSharedGroupData({
+        SharedGroupId: roomCode,
+        Keys: ["lastAction", "currentTurn"]
+      }, (result) => {
+        const data = result.data.Data;
+
+        // Vérifie si c'est ton tour (Unity écrit "currentTurn": "Alex")
+        if (data.currentTurn) {
+          const turn = data.currentTurn.Value;
+          if (turn === playerName && !myTurn) {
+            myTurn = true;
+            document.getElementById("turn-box").className = "turn-box your-turn";
+            document.getElementById("turn-box").textContent = "C'est ton tour! Joue une carte.";
+          } else if (turn !== playerName) {
+            document.getElementById("turn-box").className = "turn-box";
+            document.getElementById("turn-box").textContent = "Tour de " + turn + "...";
+            myTurn = false;
+          }
+        }
+
+        // Affiche les actions des autres joueurs
+        if (data.lastAction) {
+          const action = data.lastAction.Value;
+          if (action !== lastAction) {
+            lastAction = action;
+            try {
+              const a = JSON.parse(action);
+              if (a.playFabId !== playFabId) {
+                log("<span>" + a.playerName + "</span> joue <span>" + a.cardName + "</span>");
+              }
+            } catch(e) {}
+          }
+        }
+
+      }, null);
+    }, 1500);
+  }
+
+  // ---- UI HELPERS ----
+  function updateMana() {
+    const pips = document.querySelectorAll(".mana-pip");
+    pips.forEach((pip, i) => {
+      pip.classList.toggle("full", i < mana);
+    });
+    document.getElementById("mana-label").textContent = mana + " / " + maxMana + " mana";
+  }
+
+  function log(msg) {
+    const el = document.getElementById("log");
+    el.innerHTML = msg;
+  }
+
+  function setStatus(msg) {
+    document.getElementById("join-status").textContent = msg;
+  }
+
+  function getDeviceId() {
+    let id = localStorage.getItem("cardgame_deviceid");
+    if (!id) {
+      id = "web_" + Math.random().toString(36).substr(2, 12);
+      localStorage.setItem("cardgame_deviceid", id);
+    }
+    return id;
+  }
+</script>
+</body>
+</html>
