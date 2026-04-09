@@ -171,7 +171,7 @@
     return id;
   }
 
-  // ---- 1. LOGIN ----
+// ---- 1. LOGIN ----
   async function joinMatchmaking() {
     playerName = document.getElementById("name-input").value.trim();
     document.getElementById("join-btn").disabled = true;
@@ -190,13 +190,37 @@
       entityToken   = login.EntityToken.EntityToken;
       entityId      = login.EntityToken.Entity.Id;
 
-      setStatus("Connecté! Recherche une partie...");
+      setStatus("Connecté! Nettoyage des anciens tickets...");
+
+      // Annule tous les tickets existants avant d'en créer un nouveau
+      await cancelExistingTickets();
       await createTicket();
 
     } catch(e) {
       setStatus("Erreur: " + e.message);
       document.getElementById("join-btn").disabled = false;
     }
+  }
+
+  // ---- ANNULE LES VIEUX TICKETS ----
+  async function cancelExistingTickets() {
+    try {
+      const result = await pf("/Match/ListMatchmakingTicketsForPlayer", {
+        QueueName: QUEUE,
+        Entity: { Id: entityId, Type: "title_player_account" }
+      }, "entity");
+
+      if (result.TicketIds && result.TicketIds.length > 0) {
+        for (const id of result.TicketIds) {
+          try {
+            await pf("/Match/CancelMatchmakingTicket", {
+              QueueName: QUEUE,
+              TicketId: id
+            }, "entity");
+          } catch(e) {}
+        }
+      }
+    } catch(e) {}
   }
 
   // ---- 2. CRÉER TICKET MATCHMAKING ----
