@@ -193,41 +193,18 @@
     await onMatched(null);
   }
 
-  // ---- MATCH TROUVÉ ----
- async function onMatched(members) {
-    // 1. Crée le groupe
-    try { await pf("/Client/CreateSharedGroup", { SharedGroupId: matchId }, "session"); } catch(e) {}
+async function onMatched(members) {
+    // Écrit les données en PUBLIC — tout le monde peut lire
+    await pf("/Client/UpdateUserData", {
+        Data: {
+            activeMatchId: matchId,
+            playerName:    playerName
+        },
+        Permission: "Public"
+    }, "session");
 
-    // 2. S'ajoute comme membre — NOUVEAU
-    try {
-        await pf("/Client/AddSharedGroupMembers", {
-            SharedGroupId: matchId,
-            PlayFabIds: [playFabId]
-        }, "session");
-    } catch(e) {}
-
-    // 3. Écrit son nom
-    try {
-        await pf("/Client/UpdateSharedGroupData", {
-            SharedGroupId: matchId,
-            Data: { ["player_" + playFabId]: JSON.stringify({ name: playerName, joinedAt: Date.now() }) }
-        }, "session");
-    } catch(e) {}
-
-    // 4. Écrit dans UNITY_BRIDGE
-    try { await pf("/Client/CreateSharedGroup", { SharedGroupId: "UNITY_BRIDGE" }, "session"); } catch(e) {}
-    try {
-        await pf("/Client/AddSharedGroupMembers", {
-            SharedGroupId: "UNITY_BRIDGE",
-            PlayFabIds: [playFabId]
-        }, "session");
-    } catch(e) {}
-    try {
-        await pf("/Client/UpdateSharedGroupData", {
-            SharedGroupId: "UNITY_BRIDGE",
-            Data: { activeMatchId: matchId }
-        }, "session");
-    } catch(e) {}
+    // Affiche le PlayFabId pour Unity
+    console.log("TON PLAYFAB ID: " + playFabId);
 
     showReady(members);
 }
