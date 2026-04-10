@@ -193,31 +193,56 @@
     await onMatched(null);
   }
 
-  async function onMatched(members) {
+async function onMatched(members) {
     setStatus("Enregistrement...");
 
-    // Appelle Azure Function — crée le groupe et enregistre le joueur
-    await callAzure({ name: playerName, playFabId, matchId });
-
-    // Écrit aussi le matchId en public pour que Unity le trouve
+    // Crée le groupe directement via PlayFab Admin API
     try {
-      await pf("/Client/UpdateUserData", {
-        Data: { activeMatchId: matchId },
-        Permission: "Public"
-      }, "session");
+        await fetch("https://7F2D7.playfabapi.com/Server/CreateSharedGroup", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-SecretKey": "BCDYK9KK1DZJENQGQ7NI3YSQSNEXWKUXWX53QF6NEZ31Z4SJQK"
+            },
+            body: JSON.stringify({ SharedGroupId: matchId })
+        });
+    } catch(e) {}
+
+    try {
+        await fetch("https://7F2D7.playfabapi.com/Server/UpdateSharedGroupData", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-SecretKey": "BCDYK9KK1DZJENQGQ7NI3YSQSNEXWKUXWX53QF6NEZ31Z4SJQK"
+            },
+            body: JSON.stringify({
+                SharedGroupId: matchId,
+                Data: {
+                    ["player_" + playFabId]: JSON.stringify({ name: playerName, playFabId })
+                }
+            })
+        });
+    } catch(e) {}
+
+    // Écrit matchId en public
+    try {
+        await pf("/Client/UpdateUserData", {
+            Data: { activeMatchId: matchId },
+            Permission: "Public"
+        }, "session");
     } catch(e) {}
 
     let rows = members
-      ? members.map(m => `<div class="player-row">${m.Attributes?.DataObject?.name || "Joueur"}</div>`).join("")
-      : `<div class="player-row">${playerName}</div>`;
+        ? members.map(m => `<div class="player-row">${m.Attributes?.DataObject?.name || "Joueur"}</div>`).join("")
+        : `<div class="player-row">${playerName}</div>`;
 
     render(`
-      <h1>Alerte Magma</h1>
-      <div class="success">Partie trouvée!</div>
-      ${rows}
-      <div class="status">En attente du début...</div>
+        <h1>Alerte Magma</h1>
+        <div class="success">Partie trouvée!</div>
+        ${rows}
+        <div class="status">En attente du début...</div>
     `);
-  }
+}
 
   // Envoie une carte — cardId = 1 à 10
   async function sendCard(cardId) {
