@@ -32,10 +32,10 @@
 <body>
 <div class="container" id="root"></div>
 <script>
-  const TITLE_ID   = "7F2D7";
-  const BASE       = "https://7F2D7.playfabapi.com";
-  const QUEUE      = "alertemagma_game";
-  const AZURE_FN   = "https://alertemagma-grd6arbecmc3cqbh.canadacentral-01.azurewebsites.net/api/RegisterPlayer";
+  const TITLE_ID = "7F2D7";
+  const BASE     = "https://7F2D7.playfabapi.com";
+  const QUEUE    = "alertemagma_game";
+  const AZURE_FN = "https://alertemagma-grd6arbecmc3cqbh.canadacentral-01.azurewebsites.net/api/RegisterPlayer";
 
   let sessionTicket = "";
   let entityToken   = "";
@@ -57,11 +57,12 @@
   }
 
   async function callAzure(body) {
-    const res  = await fetch(AZURE_FN, {
+    const res = await fetch(AZURE_FN, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body)
     });
+    if (!res.ok) throw new Error("Azure erreur: " + res.status);
     return await res.json();
   }
 
@@ -89,7 +90,6 @@
     playerName = document.getElementById("name").value.trim();
     document.getElementById("btn").disabled = true;
     setStatus("Connexion...");
-
     try {
       const login = await pf("/Client/LoginWithCustomID", {
         CustomId: getDeviceId(), CreateAccount: true, TitleId: TITLE_ID,
@@ -100,11 +100,10 @@
       entityToken   = login.EntityToken.EntityToken;
       entityId      = login.EntityToken.Entity.Id;
 
-      setStatus("Nettoyage des anciens tickets...");
+      setStatus("Nettoyage...");
       await cancelOldTickets();
       setStatus("Recherche une partie...");
       await createTicket();
-
     } catch(e) {
       setStatus("Erreur: " + e.message);
       document.getElementById("btn").disabled = false;
@@ -114,8 +113,7 @@
   async function cancelOldTickets() {
     try {
       const result = await pf("/Match/ListMatchmakingTicketsForPlayer", {
-        QueueName: QUEUE,
-        Entity: { Id: entityId, Type: "title_player_account" }
+        QueueName: QUEUE, Entity: { Id: entityId, Type: "title_player_account" }
       }, "entity");
       if (result.TicketIds && result.TicketIds.length > 0) {
         for (const id of result.TicketIds) {
@@ -161,16 +159,12 @@
         const data    = await pf("/Match/GetMatchmakingTicket", {
           QueueName: QUEUE, TicketId: ticketId, EscapeObject: false
         }, "entity");
-
         const members = data.Members ? data.Members.length : 1;
         const status  = data.Status;
-
         document.querySelectorAll(".pip").forEach((p, i) => p.classList.toggle("on", i < members));
         setStatus(members + " / 4 joueurs");
-
         const btn = document.getElementById("force-btn");
-        if (btn && members >= 2) btn.style.display = "block";
-
+        if (btn && members >= 1) btn.style.display = "block";
         if (status === "Matched") {
           clearInterval(pollTimer);
           matchId = data.MatchId;
@@ -184,77 +178,50 @@
     clearInterval(pollTimer);
     document.getElementById("force-btn").style.display = "none";
     setStatus("Démarrage...");
-
     try {
       await pf("/Match/CancelMatchmakingTicket", { QueueName: QUEUE, TicketId: ticketId }, "entity");
     } catch(e) {}
-
     matchId = ticketId.replace(/-/g, "").slice(0, 12);
     await onMatched(null);
   }
 
-async function onMatched(members) {
+  async function onMatched(members) {
     setStatus("Enregistrement...");
-
-    // Crée le groupe directement via PlayFab Admin API
     try {
-        await fetch("https://7F2D7.playfabapi.com/Server/CreateSharedGroup", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-SecretKey": "BCDYK9KK1DZJENQGQ7NI3YSQSNEXWKUXWX53QF6NEZ31Z4SJQK"
-            },
-            body: JSON.stringify({ SharedGroupId: matchId })
-        });
-    } catch(e) {}
+      // Azure Function gère la secret key — pas dans le code
+      await callAzure({ name: playerName, playFabId, matchId });
+    } catch(e) {
+      console.error("Azure erreur:", e.message);
+      setStatus("Erreur Azure: " + e.message);
+      return;
+    }
 
+    // Écrit matchId en public pour Unity
     try {
-        await fetch("https://7F2D7.playfabapi.com/Server/UpdateSharedGroupData", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "X-SecretKey": "BCDYK9KK1DZJENQGQ7NI3YSQSNEXWKUXWX53QF6NEZ31Z4SJQK"
-            },
-            body: JSON.stringify({
-                SharedGroupId: matchId,
-                Data: {
-                    ["player_" + playFabId]: JSON.stringify({ name: playerName, playFabId })
-                }
-            })
-        });
-    } catch(e) {}
-
-    // Écrit matchId en public
-    try {
-        await pf("/Client/UpdateUserData", {
-            Data: { activeMatchId: matchId },
-            Permission: "Public"
-        }, "session");
+      await pf("/Client/UpdateUserData", {
+        Data: { activeMatchId: matchId },
+        Permission: "Public"
+      }, "session");
     } catch(e) {}
 
     let rows = members
-        ? members.map(m => `<div class="player-row">${m.Attributes?.DataObject?.name || "Joueur"}</div>`).join("")
-        : `<div class="player-row">${playerName}</div>`;
+      ? members.map(m => `<div class="player-row">${m.Attributes?.DataObject?.name || "Joueur"}</div>`).join("")
+      : `<div class="player-row">${playerName}</div>`;
 
     render(`
-        <h1>Alerte Magma</h1>
-        <div class="success">Partie trouvée!</div>
-        ${rows}
-        <div class="status">En attente du début...</div>
+      <h1>Alerte Magma</h1>
+      <div class="success">Partie trouvée!</div>
+      ${rows}
+      <div class="status">En attente du début...</div>
     `);
-}
+  }
 
-  // Envoie une carte — cardId = 1 à 10
+  // Appelé quand le joueur joue une carte
   async function sendCard(cardId) {
     try {
-      await callAzure({
-        action: "playCard",
-        playFabId,
-        matchId,
-        cardId
-      });
+      await callAzure({ action: "playCard", playFabId, matchId, cardId });
     } catch(e) {
-      console.error("Erreur envoi carte:", e);
+      console.error("Erreur carte:", e.message);
     }
   }
 
