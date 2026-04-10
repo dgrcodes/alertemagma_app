@@ -35,7 +35,6 @@
   const TITLE_ID = "7F2D7";
   const BASE     = "https://7F2D7.playfabapi.com";
   const QUEUE    = "alertemagma_game";
-  const AZURE_FN = "https://corsproxy.io/?url=https://alertemagma-grd6arbecmc3cqbh.canadacentral-01.azurewebsites.net/api/RegisterPlayer";
 
   let sessionTicket = "";
   let entityToken   = "";
@@ -54,16 +53,6 @@
     const json = await res.json();
     if (json.code !== 200) throw new Error(json.errorMessage || "Erreur PlayFab");
     return json.data;
-  }
-
-  async function callAzure(body) {
-    const res = await fetch(AZURE_FN, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body)
-    });
-    if (!res.ok) throw new Error("Azure erreur: " + res.status);
-    return await res.json();
   }
 
   function getDeviceId() {
@@ -187,22 +176,20 @@
 
   async function onMatched(members) {
     setStatus("Enregistrement...");
-    try {
-      // Azure Function gère la secret key — pas dans le code
-      await callAzure({ name: playerName, playFabId, matchId });
-    } catch(e) {
-      console.error("Azure erreur:", e.message);
-      setStatus("Erreur Azure: " + e.message);
-      return;
-    }
 
-    // Écrit matchId en public pour Unity
+    // Écrit directement dans UserData — pas d'Azure
     try {
       await pf("/Client/UpdateUserData", {
-        Data: { activeMatchId: matchId },
+        Data: {
+          activeMatchId: matchId,
+          ["player_" + playFabId]: JSON.stringify({ name: playerName, playFabId })
+        },
         Permission: "Public"
       }, "session");
-    } catch(e) {}
+      console.log("UserData écrit! matchId:", matchId, "playFabId:", playFabId);
+    } catch(e) {
+      console.error("UpdateUserData erreur:", e.message);
+    }
 
     let rows = members
       ? members.map(m => `<div class="player-row">${m.Attributes?.DataObject?.name || "Joueur"}</div>`).join("")
@@ -216,10 +203,16 @@
     `);
   }
 
-  // Appelé quand le joueur joue une carte
+  // Envoie une carte — cardId = 1 à 10
   async function sendCard(cardId) {
     try {
-      await callAzure({ action: "playCard", playFabId, matchId, cardId });
+      await pf("/Client/UpdateUserData", {
+        Data: {
+          lastAction: JSON.stringify({ playerId: playFabId, cardId })
+        },
+        Permission: "Public"
+      }, "session");
+      console.log("Carte envoyée: card_" + cardId);
     } catch(e) {
       console.error("Erreur carte:", e.message);
     }
