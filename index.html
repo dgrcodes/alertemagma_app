@@ -181,9 +181,10 @@
     try {
       await pf("/Client/UpdateUserData", {
         Data: {
-          activeMatchId: matchId,
-          ["player_" + playFabId]: JSON.stringify({ name: playerName, playFabId })
-        },
+  activeMatchId: matchId,
+  playerName:    playerName,
+  registeredAt:  Date.now().toString()
+},
         Permission: "Public"
       }, "session");
       console.log("UserData écrit! matchId:", matchId, "playFabId:", playFabId);
