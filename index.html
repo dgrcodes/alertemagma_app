@@ -2,224 +2,104 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>Alerte Magma</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rejoindre la session</title>
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: #1a1a2e; color: #e0e0e0; font-family: -apple-system, sans-serif; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
-    .container { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 360px; padding: 32px 24px; }
-    h1 { font-size: 26px; font-weight: 700; color: #5dcaa5; text-align: center; }
-    p  { font-size: 13px; color: #555; text-align: center; line-height: 1.6; }
-    .input-label { font-size: 11px; color: #555; letter-spacing: 0.08em; }
-    input { background: #0f3460; border: 1px solid #1d4a8a; border-radius: 12px; padding: 14px 16px; font-size: 16px; color: #fff; width: 100%; outline: none; }
-    input:focus { border-color: #5dcaa5; }
-    input::placeholder { color: #444; }
-    button { background: #1D9E75; border: none; border-radius: 12px; padding: 15px; width: 100%; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 4px; }
-    button:disabled { opacity: 0.4; }
-    button:active { opacity: 0.85; }
-    .status { font-size: 12px; color: #888; text-align: center; min-height: 18px; }
-    .spinner { width: 32px; height: 32px; border: 3px solid #1d4a8a; border-top-color: #5dcaa5; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .pips { display: flex; gap: 10px; justify-content: center; }
-    .pip { width: 12px; height: 12px; border-radius: 50%; background: #1d4a8a; transition: background 0.3s; }
-    .pip.on { background: #5dcaa5; }
-    .big-btn { background: #534AB7; border: none; border-radius: 12px; padding: 15px; width: 100%; color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; }
-    .big-btn:active { opacity: 0.85; }
-    .success { color: #5dcaa5; font-size: 15px; text-align: center; font-weight: 600; }
-    .player-row { background: #0f3460; border-radius: 10px; padding: 10px 14px; font-size: 13px; color: #aaa; text-align: center; }
+    body {
+      font-family: sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+      background: #1a1a2e;
+      color: #fff;
+    }
+    .card {
+      background: #16213e;
+      padding: 40px;
+      border-radius: 16px;
+      text-align: center;
+      width: 320px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+    h1 { font-size: 22px; margin-bottom: 24px; }
+    input {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #0f3460;
+      color: #fff;
+      font-size: 16px;
+      box-sizing: border-box;
+      margin-bottom: 16px;
+    }
+    button {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: #e94560;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #status { margin-top: 20px; font-size: 14px; color: #aaa; }
+    #counter { margin-top: 12px; font-size: 28px; font-weight: bold; color: #e94560; }
+    #counter-label { font-size: 13px; color: #aaa; }
   </style>
 </head>
 <body>
-<div class="container" id="root"></div>
-<script>
-  const TITLE_ID = "7F2D7";
-  const BASE     = "https://7F2D7.playfabapi.com";
-  const QUEUE    = "alertemagma_game";
+  <div class="card">
+    <h1>🎮 Rejoindre</h1>
+    <input type="text" id="nameInput" placeholder="Ton nom de joueur" maxlength="32"/>
+    <button id="joinBtn" onclick="joinSession()">Rejoindre</button>
+    <div id="status"></div>
+    <div id="counter"></div>
+    <div id="counter-label"></div>
+  </div>
 
-  let sessionTicket = "";
-  let entityToken   = "";
-  let entityId      = "";
-  let playFabId     = "";
-  let playerName    = "";
-  let ticketId      = "";
-  let matchId       = "";
-  let pollTimer     = null;
+  <script>
+    // ⬇️ Remplace par l'URL de ta Azure Function
+    const FUNCTION_URL = 'https://TON_APP.azurewebsites.net/api/JoinSession';
 
-  async function pf(endpoint, body, auth) {
-    const headers = { "Content-Type": "application/json" };
-    if (auth === "session") headers["X-Authorization"] = sessionTicket;
-    if (auth === "entity")  headers["X-EntityToken"]   = entityToken;
-    const res  = await fetch(BASE + endpoint, { method: "POST", headers, body: JSON.stringify(body) });
-    const json = await res.json();
-    if (json.code !== 200) throw new Error(json.errorMessage || "Erreur PlayFab");
-    return json.data;
-  }
+    async function joinSession() {
+      const name = document.getElementById('nameInput').value.trim();
+      if (!name) { setStatus('Entre ton nom !', 'red'); return; }
 
-  function getDeviceId() {
-    let id = localStorage.getItem("am_id");
-    if (!id) { id = "web_" + Math.random().toString(36).substr(2, 12); localStorage.setItem("am_id", id); }
-    return id;
-  }
+      const btn = document.getElementById('joinBtn');
+      btn.disabled = true;
+      setStatus('Connexion...', '#aaa');
 
-  function render(html) { document.getElementById("root").innerHTML = html; }
-  function setStatus(msg) { const el = document.getElementById("status"); if (el) el.textContent = msg; }
-
-  function showName() {
-    render(`
-      <h1>Alerte Magma</h1>
-      <span class="input-label">TON NOM</span>
-      <input id="name" placeholder="ex: Alex" maxlength="16"
-        oninput="document.getElementById('btn').disabled=this.value.trim().length<2">
-      <button id="btn" onclick="doJoin()" disabled>Trouver une partie</button>
-      <div class="status" id="status"></div>
-    `);
-  }
-
-  async function doJoin() {
-    playerName = document.getElementById("name").value.trim();
-    document.getElementById("btn").disabled = true;
-    setStatus("Connexion...");
-    try {
-      const login = await pf("/Client/LoginWithCustomID", {
-        CustomId: getDeviceId(), CreateAccount: true, TitleId: TITLE_ID,
-        InfoRequestParameters: { GetEntityToken: true }
-      });
-      sessionTicket = login.SessionTicket;
-      playFabId     = login.PlayFabId;
-      entityToken   = login.EntityToken.EntityToken;
-      entityId      = login.EntityToken.Entity.Id;
-
-      setStatus("Nettoyage...");
-      await cancelOldTickets();
-      setStatus("Recherche une partie...");
-      await createTicket();
-    } catch(e) {
-      setStatus("Erreur: " + e.message);
-      document.getElementById("btn").disabled = false;
-    }
-  }
-
-  async function cancelOldTickets() {
-    try {
-      const result = await pf("/Match/ListMatchmakingTicketsForPlayer", {
-        QueueName: QUEUE, Entity: { Id: entityId, Type: "title_player_account" }
-      }, "entity");
-      if (result.TicketIds && result.TicketIds.length > 0) {
-        for (const id of result.TicketIds) {
-          try { await pf("/Match/CancelMatchmakingTicket", { QueueName: QUEUE, TicketId: id }, "entity"); } catch(e) {}
-        }
-      }
-    } catch(e) {}
-  }
-
-  async function createTicket() {
-    const data = await pf("/Match/CreateMatchmakingTicket", {
-      QueueName: QUEUE,
-      GiveUpAfterSeconds: 120,
-      Creator: {
-        Entity: { Id: entityId, Type: "title_player_account" },
-        Attributes: { DataObject: { name: playerName } }
-      }
-    }, "entity");
-    ticketId = data.TicketId;
-    showWaiting(1);
-    pollTicket();
-  }
-
-  function showWaiting(count) {
-    render(`
-      <h1>Alerte Magma</h1>
-      <p>Salut <strong style="color:#5dcaa5">${playerName}</strong>!</p>
-      <div class="spinner"></div>
-      <div class="pips">
-        <div class="pip ${count>=1?'on':''}"></div>
-        <div class="pip ${count>=2?'on':''}"></div>
-        <div class="pip ${count>=3?'on':''}"></div>
-        <div class="pip ${count>=4?'on':''}"></div>
-      </div>
-      <div class="status" id="status">${count} / 4 joueurs</div>
-      <button class="big-btn" id="force-btn" style="display:none" onclick="forceStart()">Tout le monde est là!</button>
-    `);
-  }
-
-  function pollTicket() {
-    pollTimer = setInterval(async () => {
       try {
-        const data    = await pf("/Match/GetMatchmakingTicket", {
-          QueueName: QUEUE, TicketId: ticketId, EscapeObject: false
-        }, "entity");
-        const members = data.Members ? data.Members.length : 1;
-        const status  = data.Status;
-        document.querySelectorAll(".pip").forEach((p, i) => p.classList.toggle("on", i < members));
-        setStatus(members + " / 4 joueurs");
-        const btn = document.getElementById("force-btn");
-        if (btn && members >= 1) btn.style.display = "block";
-        if (status === "Matched") {
-          clearInterval(pollTimer);
-          matchId = data.MatchId;
-          await onMatched(data.Members);
+        const res  = await fetch(FUNCTION_URL, {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ playerName: name })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+          setStatus(`✅ Bienvenue, ${data.playerName} !`, '#4caf50');
+          document.getElementById('counter').textContent = data.count;
+          document.getElementById('counter-label').textContent = 'joueur(s) connecté(s)';
+        } else {
+          setStatus('❌ Erreur : ' + data, 'red');
+          btn.disabled = false;
         }
-      } catch(e) {}
-    }, 5000);
-  }
-
-  async function forceStart() {
-    clearInterval(pollTimer);
-    document.getElementById("force-btn").style.display = "none";
-    setStatus("Démarrage...");
-    try {
-      await pf("/Match/CancelMatchmakingTicket", { QueueName: QUEUE, TicketId: ticketId }, "entity");
-    } catch(e) {}
-    matchId = ticketId.replace(/-/g, "").slice(0, 12);
-    await onMatched(null);
-  }
-
-  async function onMatched(members) {
-    setStatus("Enregistrement...");
-
-    // Écrit directement dans UserData — pas d'Azure
-    try {
-      await pf("/Client/UpdateUserData", {
-        Data: {
-  activeMatchId: matchId,
-  playerName:    playerName,
-  registeredAt:  Date.now().toString()
-},
-        Permission: "Public"
-      }, "session");
-      console.log("UserData écrit! matchId:", matchId, "playFabId:", playFabId);
-    } catch(e) {
-      console.error("UpdateUserData erreur:", e.message);
+      } catch (err) {
+        setStatus('❌ Impossible de joindre le serveur', 'red');
+        btn.disabled = false;
+      }
     }
 
-    let rows = members
-      ? members.map(m => `<div class="player-row">${m.Attributes?.DataObject?.name || "Joueur"}</div>`).join("")
-      : `<div class="player-row">${playerName}</div>`;
-
-    render(`
-      <h1>Alerte Magma</h1>
-      <div class="success">Partie trouvée!</div>
-      ${rows}
-      <div class="status">En attente du début...</div>
-    `);
-  }
-
-  // Envoie une carte — cardId = 1 à 10
-  async function sendCard(cardId) {
-    try {
-      await pf("/Client/UpdateUserData", {
-        Data: {
-          lastAction: JSON.stringify({ playerId: playFabId, cardId })
-        },
-        Permission: "Public"
-      }, "session");
-      console.log("Carte envoyée: card_" + cardId);
-    } catch(e) {
-      console.error("Erreur carte:", e.message);
+    function setStatus(msg, color) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.style.color = color;
     }
-  }
-
-  showName();
-</script>
+  </script>
 </body>
 </html>
