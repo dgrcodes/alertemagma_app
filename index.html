@@ -6,296 +6,7 @@
   <title>Jeu de cartes</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    :root {
-      --bg:        #0d0d1a;
-      --surface:   #13132b;
-      --surface2:  #1c1c3a;
-      --accent:    #e94560;
-      --accent2:   #f5a623;
-      --text:      #e8e6f0;
-      --muted:     #7b7a9a;
-      --border:    rgba(255,255,255,0.08);
-      --radius:    14px;
-      --card-w:    88px;
-      --card-h:    130px;
-    }
-
-    body {
-      font-family: 'Outfit', sans-serif;
-      font-weight: 300;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 24px;
-      /* subtle grid texture */
-      background-image:
-        linear-gradient(rgba(233,69,96,0.03) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(233,69,96,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
-    }
-
-    /* ─── ÉCRAN LOGIN ─────────────────────────────────────── */
-    #login-screen {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 20px;
-      padding: 44px 36px;
-      text-align: center;
-      width: 320px;
-      box-shadow: 0 32px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(233,69,96,0.1);
-      animation: fadeUp .5s ease;
-    }
-    #login-screen .logo {
-      font-family: 'Cinzel', serif;
-      font-size: 26px;
-      letter-spacing: 0.08em;
-      margin-bottom: 6px;
-      background: linear-gradient(135deg, #e94560, #f5a623);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    #login-screen .sub {
-      font-size: 13px;
-      color: var(--muted);
-      margin-bottom: 28px;
-    }
-    #login-screen input {
-      width: 100%;
-      padding: 13px 16px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: var(--surface2);
-      color: var(--text);
-      font-size: 15px;
-      font-family: 'Outfit', sans-serif;
-      font-weight: 300;
-      margin-bottom: 14px;
-      outline: none;
-      transition: border-color .2s;
-    }
-    #login-screen input:focus { border-color: rgba(233,69,96,0.5); }
-    #login-screen input::placeholder { color: var(--muted); }
-    #login-screen button {
-      width: 100%;
-      padding: 13px;
-      border-radius: 10px;
-      border: none;
-      background: var(--accent);
-      color: #fff;
-      font-size: 15px;
-      font-family: 'Outfit', sans-serif;
-      font-weight: 600;
-      letter-spacing: 0.04em;
-      cursor: pointer;
-      transition: transform .15s, box-shadow .15s, background .2s;
-      box-shadow: 0 4px 20px rgba(233,69,96,0.35);
-    }
-    #login-screen button:hover { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(233,69,96,0.5); }
-    #login-screen button:active { transform: translateY(0); }
-    #login-msg {
-      margin-top: 14px;
-      font-size: 13px;
-      min-height: 18px;
-      color: var(--muted);
-    }
-
-    /* ─── ÉCRAN ATTENTE ───────────────────────────────────── */
-    #wait-screen {
-      display: none;
-      text-align: center;
-      animation: fadeUp .5s ease;
-    }
-    #wait-screen h1 {
-      font-family: 'Cinzel', serif;
-      font-size: 18px;
-      letter-spacing: 0.06em;
-      color: var(--muted);
-      margin-bottom: 28px;
-    }
-    #player-count {
-      font-family: 'Cinzel', serif;
-      font-size: 72px;
-      font-weight: 600;
-      line-height: 1;
-      background: linear-gradient(135deg, #e94560, #f5a623);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 8px;
-    }
-    #wait-screen .count-label {
-      font-size: 14px;
-      color: var(--muted);
-      margin-bottom: 24px;
-    }
-
-    /* ─── BANNIÈRE DÉBUT ──────────────────────────────────── */
-    .game-banner {
-      display: none;
-      background: linear-gradient(135deg, var(--accent), var(--accent2));
-      color: #fff;
-      padding: 10px 22px;
-      border-radius: 100px;
-      font-size: 14px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      margin-bottom: 24px;
-      animation: pulse 1.4s ease-in-out infinite;
-    }
-    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.85;transform:scale(.98)} }
-
-    /* ─── ÉCRAN JEU ───────────────────────────────────────── */
-    #game-screen {
-      display: none;
-      width: 100%;
-      max-width: 580px;
-      text-align: center;
-      animation: fadeUp .5s ease;
-    }
-    #game-screen h1 {
-      font-family: 'Cinzel', serif;
-      font-size: 16px;
-      letter-spacing: 0.1em;
-      color: var(--muted);
-      margin-bottom: 20px;
-    }
-
-    /* ─── MAIN DE CARTES ──────────────────────────────────── */
-    #hand {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-
-    /* ─── CARTE ───────────────────────────────────────────── */
-    .card {
-      width: var(--card-w);
-      height: var(--card-h);
-      border-radius: var(--radius);
-      display: flex;
-      flex-direction: column;
-      align-items: flex-end;
-      justify-content: flex-end;
-      cursor: pointer;
-      border: 1.5px solid rgba(255,255,255,0.15);
-      transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s ease;
-      user-select: none;
-      overflow: hidden;
-      position: relative;
-    }
-    .card:hover {
-      transform: translateY(-14px) scale(1.04);
-      box-shadow: 0 20px 48px rgba(0,0,0,0.6), 0 0 0 1.5px rgba(255,255,255,0.2);
-      z-index: 10;
-    }
-    .card:active { transform: translateY(-4px) scale(1.01); }
-
-    /* Image de carte */
-    .card-img {
-      position: absolute;
-      inset: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      border-radius: calc(var(--radius) - 1px);
-      transition: opacity .3s;
-    }
-
-    /* Overlay dégradé pour lisibilité du label */
-    .card-overlay {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(to top, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.1) 50%, transparent 100%);
-      border-radius: calc(var(--radius) - 1px);
-      pointer-events: none;
-    }
-
-    /* Identifiant en haut à gauche */
-    .card-id {
-      position: absolute;
-      top: 7px;
-      left: 9px;
-      font-family: 'Cinzel', serif;
-      font-size: 18px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.9);
-      text-shadow: 0 1px 4px rgba(0,0,0,0.6);
-      z-index: 2;
-      line-height: 1;
-    }
-
-    /* Nom de la carte en bas */
-    .card-name {
-      position: relative;
-      z-index: 2;
-      font-size: 9px;
-      font-weight: 400;
-      letter-spacing: 0.04em;
-      color: rgba(255,255,255,0.9);
-      padding: 0 6px 7px 6px;
-      text-align: right;
-      line-height: 1.3;
-      text-shadow: 0 1px 3px rgba(0,0,0,0.8);
-    }
-
-    /* Indicateur couleur (coin haut droit quand pas d'image) */
-    .card-dot {
-      position: absolute;
-      top: 7px;
-      right: 7px;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      z-index: 2;
-      opacity: 0.85;
-      box-shadow: 0 0 6px currentColor;
-    }
-
-    /* ─── DERNIÈRE CARTE JOUÉE ────────────────────────────── */
-    #last-played {
-      margin-top: 22px;
-      font-size: 13px;
-      color: var(--muted);
-      min-height: 20px;
-      transition: opacity .3s;
-    }
-    #last-played b { color: var(--text); }
-    #last-played .played-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; vertical-align: middle; }
-
-    /* ─── MESSAGES ────────────────────────────────────────── */
-    .msg {
-      margin-top: 14px;
-      font-size: 13px;
-      min-height: 20px;
-      transition: opacity .3s;
-    }
-
-    /* ─── ANIMATIONS ──────────────────────────────────────── */
-    @keyframes fadeUp {
-      from { opacity: 0; transform: translateY(16px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes cardDeal {
-      from { opacity: 0; transform: translateY(30px) scale(.9); }
-      to   { opacity: 1; transform: translateY(0) scale(1); }
-    }
-    .card { animation: cardDeal .35s cubic-bezier(.34,1.56,.64,1) both; }
-
-    /* ─── JOUER CONFIRMATION ──────────────────────────────── */
-    .card.played {
-      animation: playOut .3s ease forwards;
-    }
-    @keyframes playOut {
-      to { opacity: 0; transform: translateY(-40px) scale(.85); }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -319,18 +30,35 @@
 
   <!-- ═══ JEU ════════════════════════════════════════════════ -->
   <div id="game-screen">
-    <div class="game-banner" id="game-banner">🚀 La partie commence !</div>
-    <h1>✦ Ta main</h1>
-    <div id="hand"></div>
-    <div id="last-played"></div>
-    <div class="msg" id="game-msg"></div>
+
+    <!-- Haut : info & messages -->
+    <div class="game-top">
+      <div class="game-banner" id="game-banner">🚀 La partie commence !</div>
+      <div id="last-played"></div>
+      <div class="msg" id="game-msg"></div>
+    </div>
+
+    <!-- Milieu : zone de dépôt + bouton jouer -->
+    <div class="play-area">
+      <div id="play-zone">
+        <div class="zone-hint">Glisse une carte ici<br>pour la jouer</div>
+      </div>
+      <button id="confirm-btn" onclick="confirmPlay()">Jouer la carte</button>
+    </div>
+
+    <!-- Bas : main de cartes -->
+    <div class="hand-area">
+      <div class="hand-label">✦ Ta main</div>
+      <div id="hand"></div>
+    </div>
+
   </div>
 
 <script>
   /* ─── CONFIG ────────────────────────────────────────────── */
   const FUNCTION_URL = 'https://alertemagma-grd6arbecmc3cqbh.canadacentral-01.azurewebsites.net/api/JoinSession';
-  const MEDIAS_PATH  = './medias/';   // dossier des images
-  const IMG_EXT      = '.jpg';        // extension (.png ou .svg)
+  const MEDIAS_PATH  = './medias/';
+  const IMG_EXT      = '.jpg';
 
   const CARD_TYPES = [
     { id: 1,  nom: "lave_3_verticale",   couleur: "#e74c3c" },
@@ -354,9 +82,27 @@
   let gameStarted = false;
   let lastCardUid = '';
   let pollTimer   = null;
+  let stagedCard       = null;    // carte posée dans la zone de jeu
+  let lastPlayedCardData = null;  // dernière carte jouée (ghost)
+  let handElements = new Map(); // uid → élément DOM dans la main
+
+  // Drag souris
+  let draggedCard = null;
+  let dragSource  = null;    // 'hand' | 'zone'
+  let dropHandled = false;   // true si le drop a atterri quelque part
+
+  // Drag tactile
+  let touchDragCard    = null;
+  let touchDragSource  = null;  // 'hand' | 'zone'
+  let touchDragEl      = null;
+  let touchDragStarted = false;
+  let touchStartX      = 0;
+  let touchStartY      = 0;
 
   /* ─── AUTO-RECONNEXION ──────────────────────────────────── */
   window.onload = async function () {
+    initPlayZone();
+
     const savedName      = localStorage.getItem('playerName');
     const savedPlayfabId = localStorage.getItem('playfabId');
 
@@ -446,6 +192,7 @@
         const uid = lp.card.uid;
         if (uid !== lastCardUid) {
           lastCardUid = uid;
+          lastPlayedCardData = lp.card;
           const el = document.getElementById('last-played');
           el.innerHTML = `
             <span class="played-dot" style="background:${lp.card.couleur}"></span>
@@ -458,92 +205,511 @@
   /* ─── DÉBUT DE PARTIE ───────────────────────────────────── */
   function startGame(data) {
     hide('wait-screen');
-    show('game-screen');
+    show('game-screen', 'flex');
     show('game-banner', 'flex');
     setTimeout(() => hide('game-banner'), 4000);
 
     const me = data.players?.find(p => p.playfabId === myPlayfabId);
     myHand = (me?.hand?.length) ? me.hand : drawLocalCards(5);
+    renderPlayZone();
     renderHand();
+  }
+
+  /* Images manquantes → fallback sur le variant existant */
+  const IMG_FALLBACKS = {
+    'lave_3_horizontale': 'lave_3_verticale',
+    'eau_3_horizontale':  'eau_3_verticale',
+  };
+
+  /* ─── CONSTRUIRE UN ÉLÉMENT CARTE ───────────────────────── */
+  function buildCardElement(card) {
+    const div = document.createElement('div');
+    div.className = 'card';
+    div.style.background = card.couleur;
+
+    const imgNom = IMG_FALLBACKS[card.nom] ?? card.nom;
+    const img = document.createElement('img');
+    img.className = 'card-img';
+    img.src = `${MEDIAS_PATH}${imgNom}${IMG_EXT}`;
+    img.alt = card.nom;
+    img.draggable = false;
+    img.onerror = () => { img.style.display = 'none'; };
+
+    const overlay = document.createElement('div');
+    overlay.className = 'card-overlay';
+
+    const idEl = document.createElement('div');
+    idEl.className = 'card-id';
+    idEl.textContent = card.id;
+
+    const dot = document.createElement('div');
+    dot.className = 'card-dot';
+    dot.style.background = card.couleur;
+
+    const nameEl = document.createElement('div');
+    nameEl.className = 'card-name';
+    nameEl.textContent = card.nom.replace(/_/g, ' ');
+
+    div.appendChild(img);
+    div.appendChild(overlay);
+    div.appendChild(idEl);
+    div.appendChild(dot);
+    div.appendChild(nameEl);
+    return div;
+  }
+
+  /* ─── SÉLECTIONNER UNE CARTE (clic ou drop) ─────────────── */
+  function stageCard(card) {
+    const prev = stagedCard;
+    stagedCard = card;
+    renderPlayZone();
+
+    // Restaure l'ancienne carte dans la main (si différente)
+    if (prev && prev.uid !== card.uid) {
+      const el = handElements.get(prev.uid);
+      if (el) el.classList.remove('hand-hidden');
+    }
+    // Collapse la nouvelle carte sélectionnée
+    const el = handElements.get(card.uid);
+    if (el) el.classList.add('hand-hidden');
+  }
+
+  function cancelStage() {
+    const prev = stagedCard;
+    stagedCard = null;
+    renderPlayZone();
+
+    // Réouvre le slot de la carte dans la main
+    if (prev) {
+      const el = handElements.get(prev.uid);
+      if (el) el.classList.remove('hand-hidden');
+    }
+  }
+
+  /* ─── HELPER TOUCH DRAG : clone qui suit le doigt ───────── */
+  function getHandCardSize() {
+    const sample = document.querySelector('#hand .card:not(.hand-hidden):not(.dragging)');
+    return sample ? sample.offsetWidth : 90;
+  }
+
+  function startTouchClone(sourceDiv, forceSize) {
+    const rect = sourceDiv.getBoundingClientRect();
+    const size = forceSize ?? rect.width;
+    touchDragEl = sourceDiv.cloneNode(true);
+    touchDragEl.style.cssText = [
+      'position:fixed',
+      `width:${size}px`,
+      `height:${size}px`,
+      'opacity:0.92',
+      'z-index:1000',
+      'pointer-events:none',
+      'transform:scale(1.1) rotate(-3deg)',
+      'transform-origin:center center',
+      `border-radius:${getComputedStyle(sourceDiv).borderRadius}`,
+      `left:${rect.left + rect.width / 2 - size / 2}px`,
+      `top:${rect.top  + rect.height / 2 - size / 2}px`,
+      'transition:none',
+      'box-shadow:0 24px 50px rgba(0,0,0,0.7)',
+    ].join(';');
+    document.body.appendChild(touchDragEl);
+  }
+
+  function moveTouchClone(clientX, clientY) {
+    if (!touchDragEl) return;
+    const w = parseFloat(touchDragEl.style.width);
+    const h = parseFloat(touchDragEl.style.height);
+    touchDragEl.style.left = (clientX - w / 2) + 'px';
+    touchDragEl.style.top  = (clientY - h * 0.65) + 'px';
+  }
+
+  function removeTouchClone() {
+    if (touchDragEl) { document.body.removeChild(touchDragEl); touchDragEl = null; }
+  }
+
+  function isOverZone(clientX, clientY) {
+    const zr = document.getElementById('play-zone').getBoundingClientRect();
+    return clientX >= zr.left && clientX <= zr.right &&
+           clientY >= zr.top  && clientY <= zr.bottom;
   }
 
   /* ─── AFFICHER LA MAIN ──────────────────────────────────── */
   function renderHand() {
     const handDiv = document.getElementById('hand');
     handDiv.innerHTML = '';
+    handElements.clear();
 
-    myHand.forEach((card, i) => {
-      const div = document.createElement('div');
-      div.className = 'card';
-      div.style.background = card.couleur;
+    myHand.slice().sort((a, b) => a.id - b.id).forEach((card, i) => {
+      const div = buildCardElement(card);
       div.style.animationDelay = `${i * 0.06}s`;
+      div.draggable = true;
 
-      /* Image depuis ./medias/ */
-      const img = document.createElement('img');
-      img.className = 'card-img';
-      img.src = `${MEDIAS_PATH}${card.nom}${IMG_EXT}`;
-      img.alt = card.nom;
-      img.draggable = false;
-      img.onerror  = () => { img.style.display = 'none'; }; // fallback couleur
+      // Si cette carte est déjà sélectionnée, on la cache sans animation
+      if (stagedCard && stagedCard.uid === card.uid) {
+        div.classList.add('hand-hidden');
+        div.style.animation = 'none';
+      }
 
-      /* Overlay gradient */
-      const overlay = document.createElement('div');
-      overlay.className = 'card-overlay';
+      /* ── CLIC → stage direct ── */
+      div.addEventListener('click', () => stageCard(card));
 
-      /* Identifiant numérique */
-      const idEl = document.createElement('div');
-      idEl.className = 'card-id';
-      idEl.textContent = card.id;
+      /* ── DRAG SOURIS ── */
+      div.addEventListener('dragstart', (e) => {
+        draggedCard = card;
+        dragSource  = 'hand';
+        dropHandled = false;
+        e.dataTransfer.setDragImage(div, div.offsetWidth / 2, div.offsetHeight / 2);
+        e.dataTransfer.effectAllowed = 'move';
+        requestAnimationFrame(() => div.classList.add('dragging'));
+      });
+      div.addEventListener('dragend', () => {
+        div.classList.remove('dragging');
+        draggedCard = null;
+        dragSource  = null;
+        dropHandled = false;
+      });
 
-      /* Point couleur (visible si pas d'image) */
-      const dot = document.createElement('div');
-      dot.className = 'card-dot';
-      dot.style.background = card.couleur;
+      /* ── DRAG TACTILE ── */
+      div.addEventListener('touchstart', (e) => {
+        const t = e.touches[0];
+        touchStartX      = t.clientX;
+        touchStartY      = t.clientY;
+        touchDragStarted = false;
+        touchDragCard    = card;
+        touchDragSource  = 'hand';
+        div.classList.add('lifting');   // soulève visuellement dès le toucher
+      }, { passive: true });
 
-      /* Nom */
-      const nameEl = document.createElement('div');
-      nameEl.className = 'card-name';
-      nameEl.textContent = card.nom.replace(/_/g, ' ');
+      div.addEventListener('touchmove', (e) => {
+        if (!touchDragCard) return;
+        const t    = e.touches[0];
+        const dist = Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY);
 
-      div.appendChild(img);
-      div.appendChild(overlay);
-      div.appendChild(idEl);
-      div.appendChild(dot);
-      div.appendChild(nameEl);
+        if (!touchDragStarted && dist > 10) {
+          touchDragStarted = true;
+          div.classList.remove('lifting');
+          startTouchClone(div);
+          div.classList.add('dragging');
+        }
+        if (touchDragStarted) {
+          e.preventDefault();
+          moveTouchClone(t.clientX, t.clientY);
+          document.getElementById('play-zone').classList.toggle('drag-over', isOverZone(t.clientX, t.clientY));
+        }
+      }, { passive: false });
 
-      div.onclick = () => playCard(card.uid, div);
+      div.addEventListener('touchend', (e) => {
+        div.classList.remove('lifting');
+        if (!touchDragStarted) {
+          // Simple tap → stage the card
+          touchDragCard = null; touchDragSource = null; return;
+        }
+        const t = e.changedTouches[0];
+        removeTouchClone();
+        div.classList.remove('dragging');
+        document.getElementById('play-zone').classList.remove('drag-over');
+
+        if (isOverZone(t.clientX, t.clientY)) stageCard(touchDragCard);
+
+        touchDragCard    = null;
+        touchDragSource  = null;
+        touchDragStarted = false;
+      }, { passive: true });
+
+      handElements.set(card.uid, div);
       handDiv.appendChild(div);
     });
   }
 
-  /* ─── JOUER UNE CARTE ───────────────────────────────────── */
-  async function playCard(cardUid, el) {
-    if (el) {
-      el.classList.add('played');
-      el.onclick = null;
+  /* ─── ZONE DE DÉPÔT ─────────────────────────────────────── */
+  function initPlayZone() {
+    const zone     = document.getElementById('play-zone');
+    const handArea = document.querySelector('.hand-area');
+
+    // Créer l'overlay d'effets élémentaires (persistant)
+    const fx = document.createElement('div');
+    fx.id = 'zone-fx';
+    zone.appendChild(fx);
+
+    /* Zone centrale : accepte les cartes de la main */
+    zone.addEventListener('dragover', (e) => {
+      if (dragSource === 'hand') {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        zone.classList.add('drag-over');
+      }
+    });
+    zone.addEventListener('dragleave', (e) => {
+      if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
+    });
+    zone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if (dragSource === 'hand' && draggedCard) {
+        dropHandled = true;
+        stageCard(draggedCard);
+      }
+    });
+
+    /* Zone basse (main) : accepte la carte posée pour l'annuler */
+    handArea.addEventListener('dragover', (e) => {
+      if (dragSource === 'zone') { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
+    });
+    handArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      if (dragSource === 'zone') { dropHandled = true; cancelStage(); }
+    });
+  }
+
+  function renderPlayZone() {
+    const zone = document.getElementById('play-zone');
+    const btn  = document.getElementById('confirm-btn');
+    const fx   = document.getElementById('zone-fx'); // préserver avant de vider
+
+    if (!stagedCard) {
+      zone.innerHTML = '';
+      if (fx) {
+        fx.className = '';
+        zone.classList.remove('zone-shake');
+        zone.appendChild(fx);
+      }
+      if (lastPlayedCardData) {
+        const imgNom = IMG_FALLBACKS[lastPlayedCardData.nom] ?? lastPlayedCardData.nom;
+        const ghostImg = document.createElement('img');
+        ghostImg.className = 'zone-ghost-img';
+        ghostImg.src = `${MEDIAS_PATH}${imgNom}${IMG_EXT}`;
+        ghostImg.alt = '';
+        ghostImg.onerror = () => { ghostImg.style.display = 'none'; };
+        zone.appendChild(ghostImg);
+        const ghostOverlay = document.createElement('div');
+        ghostOverlay.className = 'zone-ghost-overlay';
+        ghostOverlay.style.background = lastPlayedCardData.couleur;
+        zone.appendChild(ghostOverlay);
+      }
+      const hint = document.createElement('div');
+      hint.className = 'zone-hint';
+      hint.innerHTML = 'Glisse ou clique une carte<br>pour la sélectionner';
+      zone.appendChild(hint);
+      zone.classList.remove('has-card');
+      btn.style.visibility = 'hidden';
+      btn.style.pointerEvents = 'none';
+      return;
     }
+
+    zone.classList.add('has-card');
+    zone.innerHTML = '';
+    if (fx) zone.appendChild(fx);
+    const div = buildCardElement(stagedCard);
+    div.classList.add('staged');
+    div.draggable = true;
+
+    /* ── Face arrière ── */
+    const backFace = document.createElement('div');
+    backFace.className = 'card-back-face';
+    const backImg = document.createElement('img');
+    backImg.src = `${MEDIAS_PATH}DosCartesCouleur${IMG_EXT}`;
+    backImg.alt = 'dos';
+    backFace.appendChild(backImg);
+    div.appendChild(backFace);
+
+    /* Clic → annuler sauf si swipe horizontal */
+    let wasSwiping = false;
+    div.addEventListener('click', () => { if (!wasSwiping) cancelStage(); });
+
+    /* ── DRAG SOURIS depuis la zone → vers la main ── */
+    div.addEventListener('dragstart', (e) => {
+      draggedCard = stagedCard;
+      dragSource  = 'zone';
+      dropHandled = false;
+      const s = getHandCardSize();
+      const ghost = div.cloneNode(true);
+      ghost.style.cssText = `position:fixed;width:${s}px;height:${s}px;top:-9999px;left:-9999px;border-radius:14px;overflow:hidden;pointer-events:none;`;
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, s / 2, s / 2);
+      requestAnimationFrame(() => document.body.removeChild(ghost));
+      e.dataTransfer.effectAllowed = 'move';
+      zone.classList.add('drag-out');
+    });
+    div.addEventListener('dragend', () => {
+      zone.classList.remove('drag-out');
+      if (!dropHandled) cancelStage();
+      draggedCard = null;
+      dragSource  = null;
+      dropHandled = false;
+    });
+
+    /* ── SWIPE HORIZONTAL → spin / SWIPE VERTICAL → drag ── */
+    let spinAngle    = 0;
+    let spinMode     = null;   // null | 'spin' | 'drag'
+    let spinLastX    = 0;
+    let spinLastTime = 0;
+    let spinVelocity = 0;
+    let cancelSpin   = null;
+
+    div.addEventListener('touchstart', (e) => {
+      const t = e.touches[0];
+      touchStartX = spinLastX = t.clientX;
+      touchStartY = t.clientY;
+      spinLastTime = Date.now();
+      spinVelocity = 0;
+      spinMode     = null;
+      wasSwiping   = false;
+      touchDragStarted = false;
+      touchDragCard    = stagedCard;
+      touchDragSource  = 'zone';
+      if (cancelSpin) { cancelSpin(); cancelSpin = null; }
+    }, { passive: true });
+
+    div.addEventListener('touchmove', (e) => {
+      const t  = e.touches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
+
+      if (spinMode === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        spinMode = Math.abs(dx) >= Math.abs(dy) ? 'spin' : 'drag';
+      }
+
+      if (spinMode === 'spin') {
+        e.preventDefault();
+        wasSwiping = true;
+        const now  = Date.now();
+        const dt   = now - spinLastTime || 1;
+        const move = t.clientX - spinLastX;
+        spinVelocity = move / dt;
+        spinAngle   += move * 0.55;
+        div.style.transform = `rotateY(${spinAngle}deg)`;
+        spinLastX    = t.clientX;
+        spinLastTime = now;
+
+      } else if (spinMode === 'drag') {
+        const dist = Math.hypot(dx, dy);
+        if (!touchDragStarted && dist > 10) {
+          touchDragStarted = true;
+          startTouchClone(div, getHandCardSize());
+          zone.classList.add('drag-out');
+        }
+        if (touchDragStarted) {
+          e.preventDefault();
+          moveTouchClone(t.clientX, t.clientY);
+          zone.classList.toggle('drag-over', isOverZone(t.clientX, t.clientY));
+        }
+      }
+    }, { passive: false });
+
+    div.addEventListener('touchend', (e) => {
+      if (spinMode === 'spin') {
+        // Inertie : momentum proportionnel à la vélocité
+        const momentum = spinVelocity * 220;
+        const raw      = spinAngle + momentum;
+        const snapped  = Math.round(raw / 180) * 180;
+        const from     = spinAngle;
+        cancelSpin = animateSpinTo(div, from, snapped, () => { spinAngle = snapped; cancelSpin = null; });
+
+      } else if (spinMode === 'drag' && touchDragStarted) {
+        const t = e.changedTouches[0];
+        removeTouchClone();
+        zone.classList.remove('drag-out', 'drag-over');
+        if (!isOverZone(t.clientX, t.clientY)) cancelStage();
+      }
+      touchDragCard    = null;
+      touchDragSource  = null;
+      touchDragStarted = false;
+      spinMode         = null;
+    }, { passive: true });
+
+    zone.appendChild(div);
+    btn.style.visibility = 'visible';
+    btn.style.pointerEvents = '';
+    triggerZoneFx(stagedCard);
+  }
+
+  /* ─── EFFETS ÉLÉMENTAIRES ───────────────────────────────── */
+  function triggerZoneFx(card) {
+    const fx   = document.getElementById('zone-fx');
+    const zone = document.getElementById('play-zone');
+    if (!fx) return;
+
+    // Réinitialiser les animations précédentes
+    fx.className = '';
+    zone.classList.remove('zone-shake');
+    void fx.offsetWidth; // force reflow pour relancer les keyframes
+
+    const nom = card.nom;
+    if      (nom.startsWith('lave'))   { fx.className = 'fx-lava'; }
+    else if (nom.startsWith('eau'))    { fx.className = 'fx-eau'; }
+    else if (nom.startsWith('bloque')) {
+      fx.className = 'fx-bloque';
+      zone.classList.add('zone-shake');
+      setTimeout(() => zone.classList.remove('zone-shake'), 600);
+    }
+    else if (nom.startsWith('vent'))   { fx.className = 'fx-vent'; }
+  }
+
+  /* ─── SPIN INERTIE ──────────────────────────────────────── */
+  function animateSpinTo(el, from, to, onDone) {
+    const dist    = Math.abs(to - from);
+    const duration = Math.min(700, dist * 2.8 + 150);
+    const start   = performance.now();
+    let raf;
+    function step(now) {
+      const t      = Math.min((now - start) / duration, 1);
+      const eased  = 1 - Math.pow(1 - t, 3);
+      el.style.transform = `rotateY(${from + (to - from) * eased}deg)`;
+      if (t < 1) { raf = requestAnimationFrame(step); }
+      else        { if (onDone) onDone(); }
+    }
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }
+
+  /* ─── JOUER LA CARTE ────────────────────────────────────── */
+  async function confirmPlay() {
+    if (!stagedCard) return;
+    const card = stagedCard;
+
+    // Animation de sortie avant d'envoyer
+    const stagedEl = document.querySelector('#play-zone .card.staged');
+    if (stagedEl) {
+      stagedEl.classList.add('playing-out');
+      await new Promise(r => setTimeout(r, 380));
+    }
+
+    stagedCard = null;
+    renderPlayZone();
+
+    const btn = document.getElementById('confirm-btn');
+    btn.disabled    = true;
+    btn.textContent = 'Envoi…';
+
     try {
       const res  = await fetch(FUNCTION_URL, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ action: 'playCard', cardUid, playfabId: myPlayfabId })
+        body:    JSON.stringify({ action: 'playCard', cardUid: card.uid, playfabId: myPlayfabId })
       });
       const data = await res.json();
 
+      btn.disabled    = false;
+      btn.textContent = 'Jouer la carte';
+
       if (res.ok) {
         myHand = data.hand;
-        setTimeout(() => {
-          renderHand();
-          showGameMsg(`✅ ${data.playedCard.nom.replace(/_/g,' ')} jouée !`, '#4caf50');
-          setTimeout(() => showGameMsg('', ''), 2200);
-        }, 300);
+        lastPlayedCardData = card;
+        renderHand();
+        showGameMsg(`✅ ${data.playedCard.nom.replace(/_/g,' ')} jouée !`, '#4caf50');
+        setTimeout(() => showGameMsg('', ''), 2200);
       } else {
+        stagedCard = card;
+        renderPlayZone();
+        renderHand();
         showGameMsg('Erreur : ' + JSON.stringify(data), '#e94560');
-        if (el) { el.classList.remove('played'); el.onclick = () => playCard(cardUid, el); }
       }
     } catch (err) {
+      btn.disabled    = false;
+      btn.textContent = 'Jouer la carte';
+      stagedCard = card;
+      renderPlayZone();
+      renderHand();
       showGameMsg('Erreur réseau', '#e94560');
-      if (el) { el.classList.remove('played'); el.onclick = () => playCard(cardUid, el); }
     }
   }
 
