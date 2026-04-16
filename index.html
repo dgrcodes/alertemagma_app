@@ -560,16 +560,16 @@
     }, { passive: true });
 
     div.addEventListener('touchmove', (e) => {
+      e.preventDefault(); // bloque scroll/navigation iOS dès le début
       const t  = e.touches[0];
       const dx = t.clientX - touchStartX;
       const dy = t.clientY - touchStartY;
 
-      if (spinMode === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+      if (spinMode === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
         spinMode = Math.abs(dx) >= Math.abs(dy) ? 'spin' : 'drag';
       }
 
       if (spinMode === 'spin') {
-        e.preventDefault();
         wasSwiping = true;
         const now  = Date.now();
         const dt   = now - spinLastTime || 1;
