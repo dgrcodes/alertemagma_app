@@ -261,6 +261,7 @@ body {
 
 .card.staged {
   transform-style: preserve-3d;
+  touch-action: none;
 }
 .card.staged > *:not(.card-back-face) {
   backface-visibility: hidden;
