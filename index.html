@@ -4,11 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jeu de cartes</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+  <!-- ═══ FOND VIDÉO ════════════════════════════════════════ -->
+  <video id="bg-video" autoplay muted loop playsinline>
+    <source src="./medias/BG_Phygital.mp4" type="video/mp4">
+  </video>
 
   <!-- ═══ LOGIN ═════════════════════════════════════════════ -->
   <div id="login-screen">
@@ -537,22 +540,18 @@
       dropHandled = false;
     });
 
-    /* ── POINTER EVENTS : spin horizontal / drag vertical ── */
-    let spinAngle     = 0;
-    let spinMode      = null;   // null | 'spin' | 'drag'
-    let spinLastX     = 0;
-    let spinLastTime  = 0;
-    let spinVelocity  = 0;
-    let cancelSpin    = null;
-    let spinPtrId     = null;
+    /* ── TOUCH EVENTS : spin horizontal / drag vertical ── */
+    let spinAngle    = 0;
+    let spinMode     = null;   // null | 'spin' | 'drag'
+    let spinLastX    = 0;
+    let spinLastTime = 0;
+    let spinVelocity = 0;
+    let cancelSpin   = null;
 
-    div.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse') return;
-      e.preventDefault();
-      div.setPointerCapture(e.pointerId);
-      spinPtrId        = e.pointerId;
-      touchStartX      = spinLastX = e.clientX;
-      touchStartY      = e.clientY;
+    div.addEventListener('touchstart', (e) => {
+      const t          = e.touches[0];
+      touchStartX      = spinLastX = t.clientX;
+      touchStartY      = t.clientY;
       spinLastTime     = Date.now();
       spinVelocity     = 0;
       spinMode         = null;
@@ -560,28 +559,36 @@
       touchDragStarted = false;
       touchDragCard    = stagedCard;
       touchDragSource  = 'zone';
+      // Clear the cardDrop CSS animation so its fill-mode doesn't override
+      // the inline style.transform we set during the spin.
+      // Keep the current spinAngle so the card doesn't flash back to front.
+      div.style.animation = 'none';
+      div.style.transform  = `rotateY(${spinAngle}deg)`;
       if (cancelSpin) { cancelSpin(); cancelSpin = null; }
-    });
+    }, { passive: true });
 
-    div.addEventListener('pointermove', (e) => {
-      if (e.pointerType === 'mouse' || e.pointerId !== spinPtrId) return;
-      e.preventDefault();
-      const dx = e.clientX - touchStartX;
-      const dy = e.clientY - touchStartY;
+    div.addEventListener('touchmove', (e) => {
+      const t  = e.touches[0];
+      const dx = t.clientX - touchStartX;
+      const dy = t.clientY - touchStartY;
 
-      if (spinMode === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-        spinMode = Math.abs(dx) >= Math.abs(dy) ? 'spin' : 'drag';
+      // Bias strongly toward spin: only enter drag if vertical movement is
+      // clearly dominant (1.5× horizontal). Prevents accidental drag mode
+      // from the natural diagonal drift of a finger swipe on Android.
+      if (spinMode === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+        spinMode = Math.abs(dy) > Math.abs(dx) * 1.5 ? 'drag' : 'spin';
       }
 
       if (spinMode === 'spin') {
+        e.preventDefault();   // safe: listener is { passive: false }
         wasSwiping = true;
         const now  = Date.now();
         const dt   = now - spinLastTime || 1;
-        const move = e.clientX - spinLastX;
+        const move = t.clientX - spinLastX;
         spinVelocity = move / dt;
         spinAngle   += move * 0.55;
         div.style.transform = `rotateY(${spinAngle}deg)`;
-        spinLastX    = e.clientX;
+        spinLastX    = t.clientX;
         spinLastTime = now;
 
       } else if (spinMode === 'drag') {
@@ -592,40 +599,46 @@
           zone.classList.add('drag-out');
         }
         if (touchDragStarted) {
-          moveTouchClone(e.clientX, e.clientY);
-          zone.classList.toggle('drag-over', isOverZone(e.clientX, e.clientY));
+          moveTouchClone(t.clientX, t.clientY);
+          zone.classList.toggle('drag-over', isOverZone(t.clientX, t.clientY));
         }
       }
-    });
+    }, { passive: false });
 
-    div.addEventListener('pointerup', (e) => {
-      if (e.pointerType === 'mouse' || e.pointerId !== spinPtrId) return;
-      spinPtrId = null;
+    div.addEventListener('touchend', (e) => {
+      const t = e.changedTouches[0];
 
       if (spinMode === 'spin') {
-        const momentum = spinVelocity * 220;
-        const raw      = spinAngle + momentum;
-        const snapped  = Math.round(raw / 180) * 180;
-        const from     = spinAngle;
-        cancelSpin = animateSpinTo(div, from, snapped, () => { spinAngle = snapped; cancelSpin = null; });
+        const speed = Math.abs(spinVelocity);
+        const dir   = Math.sign(spinVelocity) || 1;
+        // Minimum 360° so even a tiny flick does at least one full rotation.
+        const extraAngle = dir * Math.max(360, speed * 2500);
+        // Duration scales with speed but has a 700 ms floor so small spins
+        // feel deliberate, not snappy.
+        const duration   = Math.max(700, Math.min(5000, speed * 2800));
+        const raw        = spinAngle + extraAngle;
+        // Always land on the front face (multiple of 360°).
+        let snapped      = Math.round(raw / 360) * 360;
+        // Guard: if rounding collapsed back to the same side, push one more turn.
+        if ((snapped - spinAngle) * dir <= 0) snapped += dir * 360;
+        const from       = spinAngle;
+        cancelSpin = animateSpinTo(div, from, snapped, duration, () => { spinAngle = snapped; cancelSpin = null; });
 
       } else if (spinMode === 'drag' && touchDragStarted) {
         removeTouchClone();
         zone.classList.remove('drag-out', 'drag-over');
-        if (!isOverZone(e.clientX, e.clientY)) cancelStage();
+        if (!isOverZone(t.clientX, t.clientY)) cancelStage();
       }
       touchDragCard    = null;
       touchDragSource  = null;
       touchDragStarted = false;
       spinMode         = null;
-    });
+    }, { passive: true });
 
-    div.addEventListener('pointercancel', (e) => {
-      if (e.pointerId !== spinPtrId) return;
-      spinPtrId = null;
+    div.addEventListener('touchcancel', () => {
       if (touchDragStarted) { removeTouchClone(); zone.classList.remove('drag-out', 'drag-over'); }
       touchDragCard = null; touchDragSource = null; touchDragStarted = false; spinMode = null;
-    });
+    }, { passive: true });
 
     zone.appendChild(div);
     btn.style.visibility = 'visible';
@@ -656,14 +669,15 @@
   }
 
   /* ─── SPIN INERTIE ──────────────────────────────────────── */
-  function animateSpinTo(el, from, to, onDone) {
-    const dist    = Math.abs(to - from);
-    const duration = Math.min(700, dist * 2.8 + 150);
-    const start   = performance.now();
+  // duration is now passed explicitly so fast flips spin longer.
+  // Exponential ease-out (Expo Out) mimics friction: starts fast,
+  // decelerates sharply — exactly like a fidget spinner.
+  function animateSpinTo(el, from, to, duration, onDone) {
+    const start = performance.now();
     let raf;
     function step(now) {
-      const t      = Math.min((now - start) / duration, 1);
-      const eased  = 1 - Math.pow(1 - t, 3);
+      const t     = Math.min((now - start) / duration, 1);
+      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);  // Expo Out
       el.style.transform = `rotateY(${from + (to - from) * eased}deg)`;
       if (t < 1) { raf = requestAnimationFrame(step); }
       else        { if (onDone) onDone(); }

@@ -1,4 +1,35 @@
+/* ─── POLICES LOCALES ─────────────────────────────────── */
+@font-face {
+  font-family: 'Indoor';
+  src: url('./fonts/IndoorSurvivalDEMO-Regular.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Futura';
+  src: url('./fonts/Futura.ttc') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ─── FOND VIDÉO ──────────────────────────────────────── */
+#bg-video {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  /* After 90° rotation: original width → rendered height, original height → rendered width.
+     Set width:100vh and height:100vw so the rotated video fills the portrait screen. */
+  width:  100vh;
+  height: 100vw;
+  transform: translate(-50%, -50%) rotate(90deg);
+  object-fit: cover;
+  z-index: -1;
+  pointer-events: none;
+}
 
 html, body {
   overflow: hidden;
@@ -26,7 +57,7 @@ html, body {
 }
 
 body {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Futura', sans-serif;
   font-weight: 300;
   background: var(--bg);
   color: var(--text);
@@ -54,12 +85,13 @@ body {
   animation: fadeUp .5s ease;
 }
 #login-screen .logo {
-  font-family: 'Cinzel', serif;
+  font-family: 'Indoor', sans-serif;
   font-size: 26px;
   letter-spacing: 0.08em;
   margin-bottom: 6px;
   background: linear-gradient(135deg, #e94560, #f5a623);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
 }
 #login-screen .sub {
@@ -75,7 +107,7 @@ body {
   background: var(--surface2);
   color: var(--text);
   font-size: 15px;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Futura', sans-serif;
   font-weight: 300;
   margin-bottom: 14px;
   outline: none;
@@ -91,7 +123,7 @@ body {
   background: var(--accent);
   color: #fff;
   font-size: 15px;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Futura', sans-serif;
   font-weight: 600;
   letter-spacing: 0.04em;
   cursor: pointer;
@@ -114,19 +146,20 @@ body {
   animation: fadeUp .5s ease;
 }
 #wait-screen h1 {
-  font-family: 'Cinzel', serif;
+  font-family: 'Indoor', sans-serif;
   font-size: 18px;
   letter-spacing: 0.06em;
   color: var(--muted);
   margin-bottom: 28px;
 }
 #player-count {
-  font-family: 'Cinzel', serif;
+  font-family: 'Indoor', sans-serif;
   font-size: 72px;
   font-weight: 600;
   line-height: 1;
   background: linear-gradient(135deg, #e94560, #f5a623);
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   margin-bottom: 8px;
 }
@@ -241,18 +274,18 @@ body {
   padding: 13px 36px;
   border-radius: 100px;
   border: none;
-  background: var(--accent);
+  background: #ff2826;
   color: #fff;
   font-size: 15px;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Futura', sans-serif;
   font-weight: 600;
   letter-spacing: 0.05em;
   cursor: pointer;
   transition: transform .15s, box-shadow .15s;
-  box-shadow: 0 4px 20px rgba(233,69,96,0.4);
+  box-shadow: 0 4px 20px rgba(255,40,38,0.4);
   animation: fadeUp .25s ease;
 }
-#confirm-btn:hover     { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(233,69,96,0.55); }
+#confirm-btn:hover     { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,40,38,0.55); }
 #confirm-btn:active    { transform: translateY(0); }
 #confirm-btn:disabled  { opacity: 0.6; cursor: not-allowed; transform: none; }
 
@@ -296,10 +329,10 @@ body {
   gap: 10px;
 }
 .hand-label {
-  font-family: 'Cinzel', serif;
-  font-size: 12px;
+  font-family: 'Indoor', sans-serif;
+  font-size: 18px;
   letter-spacing: 0.1em;
-  color: var(--muted);
+  color: #ffffff;
 }
 
 /* ─── MAIN : cartes overlappées ──────────────────────── */
@@ -405,6 +438,9 @@ body {
   flex-shrink: 0;
   z-index: 1;
   transition: box-shadow .2s;
+  /* overflow: hidden (inherited from .card) flattens the 3D rendering context
+     on Chrome Android, breaking rotateY and the back-face. Override it. */
+  overflow: visible;
 }
 .card.staged:hover {
   transform: none;
@@ -457,7 +493,7 @@ body {
   position: absolute;
   top: 6px;
   left: 6px;
-  font-family: 'Cinzel', serif;
+  font-family: 'Indoor', sans-serif;
   font-size: 13px;
   font-weight: 600;
   color: #fff;
