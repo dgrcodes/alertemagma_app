@@ -87,7 +87,10 @@
   let pollTimer   = null;
   let stagedCard       = null;    // carte posée dans la zone de jeu
   let lastPlayedCardData = null;  // dernière carte jouée (ghost)
-  let handElements = new Map(); // uid → élément DOM dans la main
+  let handElements     = new Map(); // uid → élément DOM dans la main
+  let gapEl             = null;     // placeholder slot pendant le drag
+  let dragPreviewTarget = null;    // uid de la carte devant laquelle le slot est affiché
+  let handCardPositions = [];      // centres X des cartes, enregistrés au début du drag (stables)
 
   // Drag souris
   let draggedCard = null;
@@ -234,6 +237,7 @@
     const div = document.createElement('div');
     div.className = 'card';
     div.style.background = card.couleur;
+    div.dataset.uid = card.uid;
 
     const imgNom = IMG_FALLBACKS[card.nom] ?? card.nom;
     const img = document.createElement('img');
@@ -246,23 +250,13 @@
     const overlay = document.createElement('div');
     overlay.className = 'card-overlay';
 
-    const idEl = document.createElement('div');
-    idEl.className = 'card-id';
-    idEl.textContent = card.id;
-
     const dot = document.createElement('div');
     dot.className = 'card-dot';
     dot.style.background = card.couleur;
 
-    const nameEl = document.createElement('div');
-    nameEl.className = 'card-name';
-    nameEl.textContent = card.nom.replace(/_/g, ' ');
-
     div.appendChild(img);
     div.appendChild(overlay);
-    div.appendChild(idEl);
     div.appendChild(dot);
-    div.appendChild(nameEl);
     return div;
   }
 
@@ -280,6 +274,81 @@
     // Collapse la nouvelle carte sélectionnée
     const el = handElements.get(card.uid);
     if (el) el.classList.add('hand-hidden');
+  }
+
+  function showHandGap(targetUid) {
+    if (dragPreviewTarget === targetUid) return;
+    dragPreviewTarget = targetUid;
+    if (gapEl && gapEl.parentNode) gapEl.parentNode.removeChild(gapEl);
+    gapEl = document.createElement('div');
+    gapEl.className = 'hand-gap';
+    if (targetUid === '__end__') {
+      document.getElementById('hand').appendChild(gapEl);
+    } else {
+      const targetEl = handElements.get(targetUid);
+      if (!targetEl) { gapEl = null; dragPreviewTarget = null; return; }
+      targetEl.parentNode.insertBefore(gapEl, targetEl);
+    }
+  }
+
+  function removeHandGap() {
+    if (gapEl && gapEl.parentNode) gapEl.parentNode.removeChild(gapEl);
+    gapEl = null;
+  }
+
+  /* Place la carte de la zone à la position du gap dans la main */
+  function placeZoneCardAtGap(fromUid, toUid) {
+    const fromIdx = myHand.findIndex(c => c.uid === fromUid);
+    if (fromIdx !== -1) {
+      const [moved] = myHand.splice(fromIdx, 1);
+      if (toUid === '__end__') {
+        myHand.push(moved);
+      } else {
+        const toIdx = myHand.findIndex(c => c.uid === toUid);
+        toIdx === -1 ? myHand.push(moved) : myHand.splice(toIdx, 0, moved);
+      }
+    }
+    const handEl = handElements.get(fromUid);
+    if (handEl && gapEl && gapEl.parentNode) {
+      gapEl.parentNode.insertBefore(handEl, toUid === '__end__' ? gapEl.nextSibling : gapEl);
+      removeHandGap();
+      handEl.classList.remove('hand-hidden', 'dragging');
+    } else {
+      removeHandGap();
+    }
+    dragPreviewTarget = null;
+    stagedCard = null;
+    renderPlayZone();
+  }
+
+  /* Calcule le uid cible basé sur les positions stables (enregistrées au dragstart) */
+  function resolveHandTarget(clientX) {
+    for (const pos of handCardPositions) {
+      if (clientX < pos.cx) return pos.uid;
+    }
+    return '__end__';
+  }
+
+  function placeCardAtGap(fromUid, toUid) {
+    const fromIdx = myHand.findIndex(c => c.uid === fromUid);
+    if (fromIdx === -1) { removeHandGap(); dragPreviewTarget = null; return; }
+    const [moved] = myHand.splice(fromIdx, 1);
+    if (toUid === '__end__') {
+      myHand.push(moved);
+    } else {
+      const toIdx = myHand.findIndex(c => c.uid === toUid); // findIndex après splice = correct
+      toIdx === -1 ? myHand.push(moved) : myHand.splice(toIdx, 0, moved);
+    }
+    const movedEl = handElements.get(fromUid);
+    if (movedEl && gapEl && gapEl.parentNode) {
+      gapEl.parentNode.insertBefore(movedEl, toUid === '__end__' ? gapEl.nextSibling : gapEl);
+      removeHandGap();
+      movedEl.classList.remove('dragging', 'hand-hidden');
+    } else {
+      removeHandGap();
+      renderHand();
+    }
+    dragPreviewTarget = null;
   }
 
   function cancelStage() {
@@ -346,7 +415,7 @@
     handDiv.innerHTML = '';
     handElements.clear();
 
-    myHand.slice().sort((a, b) => a.id - b.id).forEach((card, i) => {
+    myHand.forEach((card, i) => {
       const div = buildCardElement(card);
       div.style.animationDelay = `${i * 0.06}s`;
       div.draggable = true;
@@ -367,13 +436,33 @@
         dropHandled = false;
         e.dataTransfer.setDragImage(div, div.offsetWidth / 2, div.offsetHeight / 2);
         e.dataTransfer.effectAllowed = 'move';
+        // Enregistre les centres X des autres cartes AVANT tout décalage
+        handCardPositions = [];
+        handElements.forEach((el, uid) => {
+          if (uid !== card.uid && !el.classList.contains('hand-hidden')) {
+            const r = el.getBoundingClientRect();
+            handCardPositions.push({ uid, cx: r.left + r.width / 2 });
+          }
+        });
+        handCardPositions.sort((a, b) => a.cx - b.cx);
         requestAnimationFrame(() => div.classList.add('dragging'));
       });
       div.addEventListener('dragend', () => {
         div.classList.remove('dragging');
+        removeHandGap();
+        dragPreviewTarget = null;
         draggedCard = null;
         dragSource  = null;
         dropHandled = false;
+      });
+
+      div.addEventListener('drop', (e) => {
+        if (dragSource === 'hand' && draggedCard && dragPreviewTarget) {
+          e.preventDefault();
+          e.stopPropagation();
+          dropHandled = true;
+          placeCardAtGap(draggedCard.uid, dragPreviewTarget);
+        }
       });
 
       /* ── DRAG TACTILE ── */
@@ -384,7 +473,16 @@
         touchDragStarted = false;
         touchDragCard    = card;
         touchDragSource  = 'hand';
-        div.classList.add('lifting');   // soulève visuellement dès le toucher
+        // Enregistre les centres X des autres cartes AVANT tout décalage
+        handCardPositions = [];
+        handElements.forEach((el, uid) => {
+          if (uid !== card.uid && !el.classList.contains('hand-hidden')) {
+            const r = el.getBoundingClientRect();
+            handCardPositions.push({ uid, cx: r.left + r.width / 2 });
+          }
+        });
+        handCardPositions.sort((a, b) => a.cx - b.cx);
+        div.classList.add('lifting');
       }, { passive: true });
 
       div.addEventListener('touchmove', (e) => {
@@ -401,14 +499,26 @@
         if (touchDragStarted) {
           e.preventDefault();
           moveTouchClone(t.clientX, t.clientY);
-          document.getElementById('play-zone').classList.toggle('drag-over', isOverZone(t.clientX, t.clientY));
+          const overZone = isOverZone(t.clientX, t.clientY);
+          document.getElementById('play-zone').classList.toggle('drag-over', overZone);
+          if (!overZone) {
+            const handAreaRect = document.querySelector('.hand-area').getBoundingClientRect();
+            const inHand = t.clientY >= handAreaRect.top && t.clientY <= handAreaRect.bottom
+                        && t.clientX >= handAreaRect.left && t.clientX <= handAreaRect.right;
+            if (inHand) {
+              showHandGap(resolveHandTarget(t.clientX));
+            } else {
+              removeHandGap(); dragPreviewTarget = null;
+            }
+          } else {
+            removeHandGap(); dragPreviewTarget = null;
+          }
         }
       }, { passive: false });
 
       div.addEventListener('touchend', (e) => {
         div.classList.remove('lifting');
         if (!touchDragStarted) {
-          // Simple tap → stage the card
           touchDragCard = null; touchDragSource = null; return;
         }
         const t = e.changedTouches[0];
@@ -416,7 +526,16 @@
         div.classList.remove('dragging');
         document.getElementById('play-zone').classList.remove('drag-over');
 
-        if (isOverZone(t.clientX, t.clientY)) stageCard(touchDragCard);
+        if (isOverZone(t.clientX, t.clientY)) {
+          removeHandGap();
+          dragPreviewTarget = null;
+          stageCard(touchDragCard);
+        } else if (gapEl && dragPreviewTarget) {
+          placeCardAtGap(touchDragCard.uid, dragPreviewTarget);
+        } else {
+          removeHandGap();
+          dragPreviewTarget = null;
+        }
 
         touchDragCard    = null;
         touchDragSource  = null;
@@ -464,7 +583,42 @@
     });
     handArea.addEventListener('drop', (e) => {
       e.preventDefault();
-      if (dragSource === 'zone') { dropHandled = true; cancelStage(); }
+      if (dragSource === 'zone') {
+        dropHandled = true;
+        if (dragPreviewTarget && draggedCard) placeZoneCardAtGap(draggedCard.uid, dragPreviewTarget);
+        else cancelStage();
+      }
+    });
+
+    /* Listener global : calcule la cible sur les positions stables → zéro flickering */
+    document.addEventListener('dragover', (e) => {
+      if (dragSource !== 'hand' && dragSource !== 'zone') return;
+
+      const handAreaRect = document.querySelector('.hand-area').getBoundingClientRect();
+      const inHand = e.clientY >= handAreaRect.top && e.clientY <= handAreaRect.bottom
+                  && e.clientX >= handAreaRect.left && e.clientX <= handAreaRect.right;
+
+      if (dragSource === 'hand' && isOverZone(e.clientX, e.clientY)) {
+        removeHandGap(); dragPreviewTarget = null; return;
+      }
+
+      if (inHand) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        showHandGap(resolveHandTarget(e.clientX));
+      } else {
+        removeHandGap(); dragPreviewTarget = null;
+      }
+    });
+
+    /* Drop sur l'espace vide du conteneur #hand */
+    const handDiv = document.getElementById('hand');
+    handDiv.addEventListener('drop', (e) => {
+      if (dragSource === 'hand' && draggedCard && dragPreviewTarget) {
+        e.preventDefault();
+        dropHandled = true;
+        placeCardAtGap(draggedCard.uid, dragPreviewTarget);
+      }
     });
   }
 
@@ -535,10 +689,20 @@
       e.dataTransfer.setDragImage(ghost, s / 2, s / 2);
       requestAnimationFrame(() => document.body.removeChild(ghost));
       e.dataTransfer.effectAllowed = 'move';
+      // Enregistre les positions stables de la main
+      handCardPositions = [];
+      handElements.forEach((el, uid) => {
+        if (!el.classList.contains('hand-hidden')) {
+          const r = el.getBoundingClientRect();
+          handCardPositions.push({ uid, cx: r.left + r.width / 2 });
+        }
+      });
+      handCardPositions.sort((a, b) => a.cx - b.cx);
       zone.classList.add('drag-out');
     });
     div.addEventListener('dragend', () => {
       zone.classList.remove('drag-out');
+      removeHandGap(); dragPreviewTarget = null;
       if (!dropHandled) cancelStage();
       draggedCard = null;
       dragSource  = null;
@@ -600,11 +764,28 @@
         const dist = Math.hypot(dx, dy);
         if (!touchDragStarted && dist > 10) {
           touchDragStarted = true;
+          // Enregistre les positions stables de la main
+          handCardPositions = [];
+          handElements.forEach((el, uid) => {
+            if (!el.classList.contains('hand-hidden')) {
+              const r = el.getBoundingClientRect();
+              handCardPositions.push({ uid, cx: r.left + r.width / 2 });
+            }
+          });
+          handCardPositions.sort((a, b) => a.cx - b.cx);
           startTouchClone(div, getHandCardSize());
           zone.classList.add('drag-out');
         }
         if (touchDragStarted) {
           moveTouchClone(t.clientX, t.clientY);
+          const handAreaRect = document.querySelector('.hand-area').getBoundingClientRect();
+          const inHand = t.clientY >= handAreaRect.top && t.clientY <= handAreaRect.bottom
+                      && t.clientX >= handAreaRect.left && t.clientX <= handAreaRect.right;
+          if (inHand) {
+            showHandGap(resolveHandTarget(t.clientX));
+          } else {
+            removeHandGap(); dragPreviewTarget = null;
+          }
           zone.classList.toggle('drag-over', isOverZone(t.clientX, t.clientY));
         }
       }
@@ -617,10 +798,8 @@
         const speed = Math.abs(spinVelocity);
         const dir   = Math.sign(spinVelocity) || 1;
         // Minimum 360° so even a tiny flick does at least one full rotation.
-        const extraAngle = dir * Math.max(360, speed * 2500);
-        // Duration scales with speed but has a 700 ms floor so small spins
-        // feel deliberate, not snappy.
-        const duration   = Math.max(700, Math.min(5000, speed * 2800));
+        const extraAngle = dir * Math.max(180, speed * 900);
+        const duration   = Math.max(350, Math.min(1800, speed * 1000));
         const raw        = spinAngle + extraAngle;
         // Always land on the front face (multiple of 360°).
         let snapped      = Math.round(raw / 360) * 360;
@@ -632,7 +811,12 @@
       } else if (spinMode === 'drag' && touchDragStarted) {
         removeTouchClone();
         zone.classList.remove('drag-out', 'drag-over');
-        if (!isOverZone(t.clientX, t.clientY)) cancelStage();
+        if (!isOverZone(t.clientX, t.clientY)) {
+          if (dragPreviewTarget && touchDragCard) placeZoneCardAtGap(touchDragCard.uid, dragPreviewTarget);
+          else cancelStage();
+        } else {
+          removeHandGap(); dragPreviewTarget = null;
+        }
       }
       touchDragCard    = null;
       touchDragSource  = null;
@@ -642,6 +826,7 @@
 
     div.addEventListener('touchcancel', () => {
       if (touchDragStarted) { removeTouchClone(); zone.classList.remove('drag-out', 'drag-over'); }
+      removeHandGap(); dragPreviewTarget = null;
       touchDragCard = null; touchDragSource = null; touchDragStarted = false; spinMode = null;
     }, { passive: true });
 
