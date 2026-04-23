@@ -362,6 +362,7 @@ body {
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
+  -webkit-touch-callout: none; /* supprime le popup natif image sur iOS/Android */
   z-index: 1;
   animation: cardDeal .35s cubic-bezier(.34,1.56,.64,1) both;
   -webkit-tap-highlight-color: transparent; /* supprime le flash bleu sur mobile */
@@ -477,6 +478,7 @@ body {
   object-fit: cover;
   border-radius: calc(var(--radius) - 1px);
   transition: opacity .3s;
+  pointer-events: none; /* empêche le menu contextuel natif sur l'image */
 }
 
 /* Overlay dégradé lisibilité */

@@ -102,6 +102,9 @@
   let touchStartX      = 0;
   let touchStartY      = 0;
 
+  /* ─── BLOQUER LE MENU CONTEXTUEL (long-press image Android) ─ */
+  document.addEventListener('contextmenu', e => e.preventDefault());
+
   /* ─── AUTO-RECONNEXION ──────────────────────────────────── */
   window.onload = async function () {
     initPlayZone();
@@ -218,10 +221,12 @@
     renderHand();
   }
 
-  /* Images manquantes → fallback sur le variant existant */
+  /* Mapping nom de carte → nom de fichier image (les fichiers n'ont pas le 'e' final) */
   const IMG_FALLBACKS = {
-    'lave_3_horizontale': 'lave_3_verticale',
-    'eau_3_horizontale':  'eau_3_verticale',
+    'lave_3_verticale':   'Lave_3_vertical',
+    'lave_3_horizontale': 'lave_3_horizontal',
+    'eau_3_verticale':    'eau_3_vertical',
+    'eau_3_horizontale':  'eau_3_horizontal',
   };
 
   /* ─── CONSTRUIRE UN ÉLÉMENT CARTE ───────────────────────── */
