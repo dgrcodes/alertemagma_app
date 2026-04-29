@@ -21,8 +21,6 @@
   position: fixed;
   top: 50%;
   left: 50%;
-  /* After 90° rotation: original width → rendered height, original height → rendered width.
-     Set width:100vh and height:100vw so the rotated video fills the portrait screen. */
   width:  100vh;
   height: 100vw;
   transform: translate(-50%, -50%) rotate(90deg);
@@ -36,7 +34,7 @@ html, body {
   overscroll-behavior: none;
   height: 100%;
   width: 100%;
-  position: fixed;   /* bloque le scroll sur iOS Safari */
+  position: fixed;
 }
 
 :root {
@@ -50,7 +48,6 @@ html, body {
   --border:    rgba(255,255,255,0.08);
   --radius:    14px;
 
-  /* Responsive: 5 cartes overlappées rentrent sur tout téléphone */
   --card-w:   clamp(88px, 27vw, 118px);
   --card-h:   var(--card-w);
   --overlap:  clamp(34px, 10vw, 46px);
@@ -169,6 +166,142 @@ body {
   margin-bottom: 24px;
 }
 
+/* ─── ÉCRAN CHOIX DE COULEUR ──────────────────────────── */
+#color-screen {
+  display: none;
+  text-align: center;
+  animation: fadeUp .5s ease;
+  width: 340px;
+}
+
+#color-screen .color-title {
+  font-family: 'Indoor', sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+#color-screen .color-question {
+  font-family: 'Indoor', sans-serif;
+  font-size: 22px;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+#color-screen .color-instruction {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 36px;
+}
+
+.color-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.color-btn {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 16px;
+  padding: 22px 16px 18px;
+  color: #fff;
+  font-family: 'Indoor', sans-serif;
+  font-size: 17px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: transform .18s cubic-bezier(.34,1.56,.64,1), border-color .18s, box-shadow .18s;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  overflow: hidden;
+}
+
+/* Couleurs de fond de chaque bouton */
+.color-btn[data-color="rouge"] { background: linear-gradient(145deg, #e74c3c, #c0392b); box-shadow: 0 6px 24px rgba(231,76,60,0.35); }
+.color-btn[data-color="jaune"] { background: linear-gradient(145deg, #f1c40f, #d4ac0d); box-shadow: 0 6px 24px rgba(241,196,15,0.35); }
+.color-btn[data-color="vert"]  { background: linear-gradient(145deg, #2ecc71, #27ae60); box-shadow: 0 6px 24px rgba(46,204,113,0.35); }
+.color-btn[data-color="bleu"]  { background: linear-gradient(145deg, #3498db, #2980b9); box-shadow: 0 6px 24px rgba(52,152,219,0.35); }
+
+.color-btn .color-emoji {
+  display: block;
+  font-size: 32px;
+  margin-bottom: 8px;
+  line-height: 1;
+}
+
+.color-btn .color-label-text {
+  display: block;
+  font-size: 16px;
+}
+
+/* Numéro de joueur (ex: Joueur 1) */
+.color-btn .color-player-num {
+  display: block;
+  font-family: 'Futura', sans-serif;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-top: 4px;
+  letter-spacing: 0.08em;
+}
+
+/* Hover */
+.color-btn:hover {
+  transform: translateY(-4px) scale(1.04);
+}
+
+/* Sélectionné */
+.color-btn.color-selected {
+  border-color: #fff;
+  transform: scale(1.06);
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.3), 0 12px 36px rgba(0,0,0,0.4) !important;
+}
+.color-btn.color-selected::after {
+  content: '✓';
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  font-size: 16px;
+  color: rgba(255,255,255,0.9);
+  font-family: 'Futura', sans-serif;
+  font-weight: 600;
+}
+
+/* Bouton confirmer couleur */
+#confirm-color-btn {
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 15px;
+  font-family: 'Futura', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: transform .15s, box-shadow .15s, opacity .2s;
+  box-shadow: 0 4px 20px rgba(233,69,96,0.35);
+  opacity: 0.4;
+  pointer-events: none;
+}
+#confirm-color-btn.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+#confirm-color-btn.active:hover  { transform: translateY(-1px); box-shadow: 0 8px 28px rgba(233,69,96,0.5); }
+#confirm-color-btn.active:active { transform: translateY(0); }
+
+#color-msg {
+  margin-top: 14px;
+  font-size: 13px;
+  min-height: 18px;
+  color: var(--muted);
+}
+
 /* ─── BANNIÈRE DÉBUT ──────────────────────────────────── */
 .game-banner {
   display: none;
@@ -184,7 +317,7 @@ body {
 }
 @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.85;transform:scale(.98)} }
 
-/* ─── ÉCRAN JEU (plein écran, 3 zones) ───────────────── */
+/* ─── ÉCRAN JEU ───────────────────────────────────────── */
 #game-screen {
   display: none;
   position: fixed;
@@ -192,7 +325,6 @@ body {
   flex-direction: column;
 }
 
-/* Zone haute */
 .game-top {
   display: flex;
   flex-direction: column;
@@ -200,6 +332,15 @@ body {
   padding: 20px 24px 8px;
   gap: 4px;
   text-align: center;
+}
+
+/* ─── INDICATEUR DE TOUR ──────────────────────────────── */
+#turn-indicator {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  min-height: 20px;
+  transition: opacity .3s;
 }
 
 /* ─── DERNIÈRE CARTE JOUÉE ────────────────────────────── */
@@ -244,7 +385,7 @@ body {
   align-items: center;
   justify-content: center;
   transition: border-color .2s, box-shadow .2s, background .2s;
-  position: relative;  /* anchor pour zone-fx en position:absolute */
+  position: relative;
 }
 #play-zone.drag-over {
   border-color: var(--accent);
@@ -253,7 +394,6 @@ body {
 }
 #play-zone.has-card { border: none; }
 
-/* Quand la carte posée est en train d'être draguée hors de la zone */
 #play-zone.drag-out .card.staged {
   opacity: 0.25;
   transform: scale(0.92);
@@ -294,6 +434,21 @@ body {
 #confirm-btn:hover     { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,40,38,0.55); }
 #confirm-btn:active    { transform: translateY(0); }
 #confirm-btn:disabled  { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+/* Bouton bloqué (pas ton tour) */
+.btn-disabled {
+  background: var(--surface2) !important;
+  box-shadow: none !important;
+  opacity: 0.7 !important;
+}
+
+/* ─── MAIN DÉSACTIVÉE (pas ton tour) ─────────────────── */
+.hand-disabled .card {
+  opacity: 0.4;
+  filter: grayscale(55%);
+  transition: opacity .3s, filter .3s;
+  cursor: default;
+}
 
 /* ─── SPIN 3D HORIZONTAL ──────────────────────────────── */
 #play-zone { perspective: 900px; }
@@ -345,8 +500,7 @@ body {
 #hand {
   display: flex;
   justify-content: center;
-  /* Pas de gap — géré par margin-right négatif sur les cartes */
-  padding: 28px 8px 8px; /* espace en haut pour le hover lift */
+  padding: 28px 8px 8px;
   overflow: visible;
 }
 
@@ -361,17 +515,16 @@ body {
   justify-content: flex-end;
   cursor: grab;
   border: 1.5px solid rgba(255,255,255,0.15);
-  /* Overlap : chaque carte se glisse sous la suivante */
   margin-right: calc(-1 * var(--overlap));
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
   user-select: none;
   -webkit-user-select: none;
-  -webkit-touch-callout: none; /* supprime le popup natif image sur iOS/Android */
+  -webkit-touch-callout: none;
   z-index: 1;
   animation: cardDeal .35s cubic-bezier(.34,1.56,.64,1) both;
-  -webkit-tap-highlight-color: transparent; /* supprime le flash bleu sur mobile */
+  -webkit-tap-highlight-color: transparent;
   transition:
     transform    .22s cubic-bezier(.34,1.56,.64,1),
     box-shadow   .22s ease,
@@ -380,10 +533,8 @@ body {
     border-width .28s ease,
     opacity      .18s ease;
 }
-/* La dernière carte n'a pas d'overlap à droite */
 .card:last-child { margin-right: 0; }
 
-/* ─── SOULÈVEMENT : hover (desktop) et .lifting (mobile touch) ── */
 .card:hover:not(.dragging):not(.staged),
 .card.lifting {
   transform: translateY(-26px) scale(1.12);
@@ -391,7 +542,6 @@ body {
   z-index: 20;
   animation: pickupGlow 2s linear infinite;
 }
-/* Pression active (desktop :active + mobile avant drag) */
 .card:active:not(.dragging):not(.staged) {
   cursor: grabbing;
   transform: translateY(-20px) scale(1.1);
@@ -399,7 +549,6 @@ body {
   margin-right: calc(var(--overlap) * 0.4);
   z-index: 20;
 }
-/* Sur écran tactile, désactiver le :hover résiduel */
 @media (hover: none) {
   .card:hover:not(.dragging):not(.staged) {
     transform: none;
@@ -410,7 +559,6 @@ body {
   .card:last-child:hover { margin-right: 0; }
 }
 
-/* ─── CARTE SÉLECTIONNÉE (reste dans le DOM, slot fermé) ─── */
 .card.hand-hidden {
   width: 0 !important;
   min-width: 0 !important;
@@ -419,10 +567,8 @@ body {
   opacity: 0 !important;
   pointer-events: none;
   animation: none !important;
-  /* La transition sur .card gère le smooth collapse/expand */
 }
 
-/* ─── SLOT FANTÔME DE RÉORGANISATION ─────────────────────── */
 .hand-gap {
   width:  var(--card-w);
   height: var(--card-h);
@@ -439,7 +585,6 @@ body {
   to   { width: var(--card-w); opacity: 1; margin-right: calc(-1 * var(--overlap)); }
 }
 
-/* ─── DRAGGING : le slot se ferme → les voisines se rapprochent ── */
 .card.dragging {
   width: 0 !important;
   min-width: 0 !important;
@@ -450,9 +595,7 @@ body {
   flex-shrink: 1;
 }
 
-/* ─── CARTE POSÉE DANS LA ZONE ────────────────────────── */
 .card.staged {
-  /* Même taille que la zone pour la remplir exactement */
   width:  clamp(210px, 58vw, 300px);
   height: clamp(210px, 58vw, 300px);
   border-radius: calc(var(--radius) + 4px);
@@ -462,15 +605,12 @@ body {
   flex-shrink: 0;
   z-index: 1;
   transition: box-shadow .2s;
-  /* overflow: hidden (inherited from .card) flattens the 3D rendering context
-     on Chrome Android, breaking rotateY and the back-face. Override it. */
   overflow: visible;
 }
 .card.staged:hover {
   transform: none;
   box-shadow: 0 8px 30px rgba(0,0,0,0.5);
 }
-/* Overlay "Annuler" au hover */
 .card.staged::after {
   content: '✕  Annuler';
   position: absolute;
@@ -492,7 +632,6 @@ body {
   background: rgba(0,0,0,0.55);
 }
 
-/* ─── IMAGE DE CARTE ──────────────────────────────────── */
 .card-img {
   position: absolute;
   inset: 0;
@@ -501,10 +640,9 @@ body {
   object-fit: cover;
   border-radius: calc(var(--radius) - 1px);
   transition: opacity .3s;
-  pointer-events: none; /* empêche le menu contextuel natif sur l'image */
+  pointer-events: none;
 }
 
-/* Overlay dégradé lisibilité */
 .card-overlay {
   position: absolute;
   inset: 0;
@@ -513,7 +651,6 @@ body {
   pointer-events: none;
 }
 
-/* Identifiant en haut à gauche — badge circulaire */
 .card-id {
   position: absolute;
   top: 6px;
@@ -537,7 +674,6 @@ body {
   justify-content: center;
 }
 
-/* Nom en bas */
 .card-name {
   position: relative;
   z-index: 2;
@@ -552,7 +688,6 @@ body {
   width: 100%;
 }
 
-/* Indicateur couleur */
 .card-dot {
   position: absolute;
   top: 7px;
@@ -565,37 +700,20 @@ body {
   box-shadow: 0 0 6px currentColor;
 }
 
-/* ─── ZONE FX : overlay élémentaire ──────────────────── */
+/* ─── ZONE FX ─────────────────────────────────────────── */
 #zone-fx {
   position: absolute;
-  inset: -28px;           /* déborde autour de la zone pour l'effet splash */
+  inset: -28px;
   border-radius: calc(var(--radius) + 34px);
   pointer-events: none;
   z-index: 50;
   overflow: visible;
 }
 
-/* ── Keyframes partagés ────────────────────────────────── */
-
-/*
-  Anneau : part de la taille de la carte (scale 1 = card boundary)
-  et s'expanse vers l'extérieur.
-  L'élément ::before est dimensionné avec calc(100% - 56px) = card size
-  car zone-fx a inset: -28px sur tous les côtés.
-*/
 @keyframes fxRing {
   0%   { transform: translate(-50%,-50%) scale(1);   opacity: 0.9; }
   100% { transform: translate(-50%,-50%) scale(2.4); opacity: 0; }
 }
-
-/*
-  Particules : invisibles tant qu'elles sont dans la carte,
-  apparaissent au bord de la carte (~20%) et explosent vers l'extérieur.
-  Les box-shadows sont placées à 110px de rayon.
-  À scale(0.75) → rayon réel ≈ 82px (bord horizontal de la carte).
-  À scale(0.20 = 20%) → rayon ≈ 105px (bord de la carte sur tout device).
-  À scale(1.9) → rayon ≈ 209px (bien en dehors).
-*/
 @keyframes fxBurst {
   0%   { transform: translate(-50%,-50%) scale(0.75); opacity: 0; }
   20%  { opacity: 1; }
@@ -603,17 +721,15 @@ body {
   100% { transform: translate(-50%,-50%) scale(1.9);  opacity: 0; }
 }
 
-/* Base commune ::before = anneau carte, ::after = particules */
 #zone-fx.fx-lava::before,
 #zone-fx.fx-eau::before,
 #zone-fx.fx-bloque::before,
 #zone-fx.fx-vent::before {
   content: '';
   position: absolute;
-  /* calc(100% - 56px) = zone-fx size − 2×28px = exact card dimensions */
   width: calc(100% - 56px);
   height: calc(100% - 56px);
-  border-radius: calc(var(--radius) + 4px); /* correspond aux coins de la carte posée */
+  border-radius: calc(var(--radius) + 4px);
   top: 50%; left: 50%;
   animation: fxRing 0.75s ease-out forwards;
 }
@@ -626,12 +742,9 @@ body {
   width: 8px; height: 8px;
   border-radius: 50%;
   top: 50%; left: 50%;
-  /* 12 particules à 30° d'intervalle, rayon 110px.
-     Invisibles au départ (dans la carte), apparaissent au bord → éclatent. */
   animation: fxBurst 0.95s ease-out forwards;
 }
 
-/* ── LAVA ──────────────────────────────────────────────── */
 #zone-fx.fx-lava::before {
   border: 3px solid rgba(255,80,0,0.95);
   box-shadow: 0 0 22px rgba(255,80,0,0.55), inset 0 0 16px rgba(255,60,0,0.1);
@@ -639,21 +752,20 @@ body {
 #zone-fx.fx-lava::after {
   background: #ff6600;
   box-shadow:
-       0px -110px  0 3px rgba(255, 70,  0, 0.95),  /* haut     0° */
-      55px  -95px  0 2px rgba(255,110,  0, 0.90),  /* 30° */
-      95px  -55px  0 3px rgba(255, 55,  0, 0.90),  /* 60° */
-     110px    0px  0 2px rgba(255, 90,  0, 0.85),  /* droite  90° */
-      95px   55px  0 3px rgba(220, 30,  0, 0.80),  /* 120° */
-      55px   95px  0 2px rgba(255, 70,  0, 0.80),  /* 150° */
-       0px  110px  0 3px rgba(255, 50,  0, 0.75),  /* bas    180° */
-     -55px   95px  0 2px rgba(255, 80,  0, 0.80),  /* 210° */
-     -95px   55px  0 3px rgba(220, 40,  0, 0.75),  /* 240° */
-    -110px    0px  0 2px rgba(255, 60,  0, 0.85),  /* gauche 270° */
-     -95px  -55px  0 3px rgba(255, 90,  0, 0.85),  /* 300° */
-     -55px  -95px  0 2px rgba(255, 70,  0, 0.90);  /* 330° */
+       0px -110px  0 3px rgba(255, 70,  0, 0.95),
+      55px  -95px  0 2px rgba(255,110,  0, 0.90),
+      95px  -55px  0 3px rgba(255, 55,  0, 0.90),
+     110px    0px  0 2px rgba(255, 90,  0, 0.85),
+      95px   55px  0 3px rgba(220, 30,  0, 0.80),
+      55px   95px  0 2px rgba(255, 70,  0, 0.80),
+       0px  110px  0 3px rgba(255, 50,  0, 0.75),
+     -55px   95px  0 2px rgba(255, 80,  0, 0.80),
+     -95px   55px  0 3px rgba(220, 40,  0, 0.75),
+    -110px    0px  0 2px rgba(255, 60,  0, 0.85),
+     -95px  -55px  0 3px rgba(255, 90,  0, 0.85),
+     -55px  -95px  0 2px rgba(255, 70,  0, 0.90);
 }
 
-/* ── EAU ───────────────────────────────────────────────── */
 #zone-fx.fx-eau::before {
   border: 3px solid rgba(52,152,219,0.95);
   box-shadow: 0 0 22px rgba(52,152,219,0.5), inset 0 0 16px rgba(52,152,219,0.08);
@@ -675,7 +787,6 @@ body {
      -55px  -95px  0 2px rgba( 41,128,185, 0.90);
 }
 
-/* ── BLOQUE ─────────────────────────────────────────────── */
 #zone-fx.fx-bloque::before {
   border: 3px solid rgba(150,150,150,0.95);
   box-shadow: 0 0 18px rgba(130,130,130,0.45);
@@ -708,7 +819,6 @@ body {
   75%     { transform: translate(-2px, 2px); }
 }
 
-/* ── VENT ───────────────────────────────────────────────── */
 #zone-fx.fx-vent::before {
   border: 3px solid rgba(46,204,113,0.95);
   box-shadow: 0 0 22px rgba(46,204,113,0.5), inset 0 0 16px rgba(46,204,113,0.08);
@@ -776,7 +886,6 @@ body {
   100% { opacity: 1;   transform: scale(1)    rotate(0deg); }
 }
 
-/* ─── OUTLINE COLORÉ AU SURVOL / PRISE EN MAIN ───────── */
 @keyframes pickupGlow {
   0%   {
     box-shadow:
@@ -808,4 +917,20 @@ body {
       0 0 18px  rgba(233, 69, 96, 0.6),
       0 26px 52px rgba(0,0,0,0.72);
   }
+}
+
+/* État désactivé pour la main */
+.hand-disabled {
+    filter: grayscale(1) brightness(0.6); /* Devient gris et sombre */
+    pointer-events: none;                /* Empêche de cliquer ou de draguer */
+    opacity: 0.7;
+    transition: all 0.4s ease-in-out;    /* Transition fluide pour le retour des couleurs */
+}
+
+/* On peut aussi ajouter un effet sur le bouton de confirmation */
+.btn-disabled {
+    background: #444 !important;
+    color: #888 !important;
+    cursor: not-allowed;
+    transform: scale(0.95);
 }

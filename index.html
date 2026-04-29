@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Jeu de cartes</title>
-<link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -31,17 +31,49 @@
     <div class="msg" id="wait-msg"></div>
   </div>
 
+  <!-- ═══ CHOIX DE COULEUR ═══════════════════════════════════ -->
+  <div id="color-screen">
+    <div class="color-title">Avant de commencer</div>
+    <div class="color-question">Regardez la couleur devant vous.<br>Quelle couleur êtes-vous ?</div>
+    <div class="color-instruction">Choisissez la couleur qui correspond à votre position dans le jeu.</div>
+
+    <div class="color-grid">
+      <button class="color-btn" data-color="rouge" onclick="selectColor('rouge')">
+        <span class="color-emoji">🔴</span>
+        <span class="color-label-text">Rouge</span>
+        <span class="color-player-num">Joueur 1</span>
+      </button>
+      <button class="color-btn" data-color="jaune" onclick="selectColor('jaune')">
+        <span class="color-emoji">🟡</span>
+        <span class="color-label-text">Jaune</span>
+        <span class="color-player-num">Joueur 2</span>
+      </button>
+      <button class="color-btn" data-color="vert" onclick="selectColor('vert')">
+        <span class="color-emoji">🟢</span>
+        <span class="color-label-text">Vert</span>
+        <span class="color-player-num">Joueur 3</span>
+      </button>
+      <button class="color-btn" data-color="bleu" onclick="selectColor('bleu')">
+        <span class="color-emoji">🔵</span>
+        <span class="color-label-text">Bleu</span>
+        <span class="color-player-num">Joueur 4</span>
+      </button>
+    </div>
+
+    <button id="confirm-color-btn" onclick="confirmColor()">Confirmer ma couleur</button>
+    <div class="msg" id="color-msg"></div>
+  </div>
+
   <!-- ═══ JEU ════════════════════════════════════════════════ -->
   <div id="game-screen">
 
-    <!-- Haut : info & messages -->
     <div class="game-top">
       <div class="game-banner" id="game-banner">🚀 La partie commence !</div>
+      <div id="turn-indicator"></div>
       <div id="last-played"></div>
       <div class="msg" id="game-msg"></div>
     </div>
 
-    <!-- Milieu : zone de dépôt + bouton jouer -->
     <div class="play-area">
       <div id="play-zone">
         <div class="zone-hint">Glisse une carte ici<br>pour la jouer</div>
@@ -49,7 +81,6 @@
       <button id="confirm-btn" onclick="confirmPlay()">Jouer la carte</button>
     </div>
 
-    <!-- Bas : main de cartes -->
     <div class="hand-area">
       <div class="hand-label">✦ Ta main</div>
       <div id="hand"></div>
@@ -79,34 +110,48 @@
   ];
 
   /* ─── ÉTAT ─────────────────────────────────────────────── */
-  let myName      = '';
-  let myPlayfabId = '';
-  let myHand      = [];
-  let gameStarted = false;
-  let lastCardUid = '';
-  let pollTimer   = null;
-  let stagedCard       = null;    // carte posée dans la zone de jeu
-  let lastPlayedCardData = null;  // dernière carte jouée (ghost)
-  let handElements     = new Map(); // uid → élément DOM dans la main
-  let gapEl             = null;     // placeholder slot pendant le drag
-  let dragPreviewTarget = null;    // uid de la carte devant laquelle le slot est affiché
-  let handCardPositions = [];      // centres X des cartes, enregistrés au début du drag (stables)
+  let myName                 = '';
+  let myPlayfabId            = '';
+  let myColor                = '';
+  let myHand                 = [];
+  let gameStarted            = false;
+  let colorConfirmed         = false;
+  let lastCardUid            = '';
+  let pollTimer              = null;
+  let currentPlayerPlayfabId = '';
+  let turnStep               = 'lava';   // 'lava' | 'card'
+  let stagedCard             = null;
+  let lastPlayedCardData     = null;
+  let handElements           = new Map();
+  let gapEl                  = null;
+  let dragPreviewTarget      = null;
+  let handCardPositions      = [];
 
   // Drag souris
   let draggedCard = null;
-  let dragSource  = null;    // 'hand' | 'zone'
-  let dropHandled = false;   // true si le drop a atterri quelque part
+  let dragSource  = null;
+  let dropHandled = false;
 
   // Drag tactile
   let touchDragCard    = null;
-  let touchDragSource  = null;  // 'hand' | 'zone'
+  let touchDragSource  = null;
   let touchDragEl      = null;
   let touchDragStarted = false;
   let touchStartX      = 0;
   let touchStartY      = 0;
 
-  /* ─── BLOQUER LE MENU CONTEXTUEL (long-press image Android) ─ */
+  /* ─── BLOQUER LE MENU CONTEXTUEL ───────────────────────── */
   document.addEventListener('contextmenu', e => e.preventDefault());
+
+  /* ─── PEUT-IL JOUER ? ───────────────────────────────────── */
+  // Le joueur peut jouer UNE CARTE seulement si :
+  //   1. C'est son tour (currentPlayerPlayfabId === myPlayfabId)
+  //   2. Unity a déjà placé la lave (turnStep === 'card')
+function canPlay() {
+    const isMyTurn   = currentPlayerPlayfabId === myPlayfabId;
+    const lavaPlaced = turnStep === 'card';
+    return isMyTurn && lavaPlaced;
+}
 
   /* ─── AUTO-RECONNEXION ──────────────────────────────────── */
   window.onload = async function () {
@@ -114,21 +159,33 @@
 
     const savedName      = localStorage.getItem('playerName');
     const savedPlayfabId = localStorage.getItem('playfabId');
+    const savedColor     = localStorage.getItem('playerColor');
 
     if (savedName && savedPlayfabId) {
       try {
         const res  = await fetch(FUNCTION_URL);
         const data = await res.json();
 
-        if (data.gameState !== 'waiting') {
-          myName      = savedName;
-          myPlayfabId = savedPlayfabId;
-          hide('login-screen');
-          hide('wait-screen');
-          showGameMsg(`♻️ Reconnecté en tant que ${myName}`, '#4caf50');
-          gameStarted = true;
-          startGame(data);
-          startPolling();
+if (data.gameState !== 'waiting') {
+  myName      = savedName;
+  myPlayfabId = savedPlayfabId;
+  hide('login-screen');
+  hide('wait-screen');
+
+  if (savedColor) {
+    // Couleur déjà choisie → jeu direct
+    myColor        = savedColor;
+    colorConfirmed = true;
+    showGameMsg(`♻️ Reconnecté en tant que ${myName}`, '#4caf50');
+    gameStarted = true;
+    startGame(data);
+  } else {
+    // Pas encore de couleur → écran couleur
+    gameStarted = true;
+    window._pendingGameData = data;
+    show('color-screen');
+  }
+  startPolling();
         } else {
           localStorage.removeItem('playerName');
           localStorage.removeItem('playfabId');
@@ -172,30 +229,92 @@
     }
   }
 
+  /* ─── SÉLECTION DE COULEUR ──────────────────────────────── */
+  function selectColor(color) {
+    myColor = color;
+    document.querySelectorAll('.color-btn').forEach(btn => {
+      btn.classList.toggle('color-selected', btn.dataset.color === color);
+    });
+    document.getElementById('confirm-color-btn').classList.add('active');
+    document.getElementById('color-msg').textContent = '';
+  }
+
+  async function confirmColor() {
+    if (!myColor) return;
+    const confirmBtn = document.getElementById('confirm-color-btn');
+    confirmBtn.disabled    = true;
+    confirmBtn.textContent = 'Envoi…';
+
+    try {
+      await fetch(FUNCTION_URL, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ action: 'setColor', playfabId: myPlayfabId, color: myColor })
+      });
+    } catch (e) {}
+
+    localStorage.setItem('playerColor', myColor);
+    colorConfirmed = true;
+    hide('color-screen');
+
+    if (gameStarted && window._pendingGameData) {
+      startGame(window._pendingGameData);
+      window._pendingGameData = null;
+    }
+  }
+
   /* ─── POLLING ───────────────────────────────────────────── */
   function startPolling() {
     pollState();
     pollTimer = setInterval(pollState, 3000);
   }
 
-  async function pollState() {
+async function pollState() {
     try {
       const res  = await fetch(FUNCTION_URL);
       const data = await res.json();
+console.log('currentPlayerPlayfabId:', currentPlayerPlayfabId, '| myPlayfabId:', myPlayfabId, '| canPlay:', canPlay());
+      // ── DEBUG TEMPORAIRE ──
+      console.log('turnStep:', data.turnStep, '| currentPlayer:', data.currentPlayerPlayfabId, '| myId:', myPlayfabId);
 
       document.getElementById('player-count').textContent = data.count;
 
-      if (data.gameState === 'started' && !gameStarted) {
+      // ── Écran couleur : déclenché par Unity quand game_grid charge ──
+      if (data.gamePhase === 'colorPicker' && !colorConfirmed && !gameStarted) {
+        hide('wait-screen');
+        show('color-screen');
+        window._pendingGameData = data;
+      }
+
+      // ── Démarrer le jeu : quand tout le monde a choisi sa couleur ──
+      if (data.gamePhase === 'playing' && !gameStarted) {
         gameStarted = true;
+        hide('wait-screen');
+        hide('color-screen');
         startGame(data);
       }
 
       if (data.gameState === 'waiting' && gameStarted) {
         localStorage.removeItem('playerName');
         localStorage.removeItem('playfabId');
+        localStorage.removeItem('playerColor');
         location.reload();
       }
 
+      // ── Mise à jour tour + step ──
+      let changed = false;
+      if (data.currentPlayerPlayfabId !== undefined &&
+          data.currentPlayerPlayfabId !== currentPlayerPlayfabId) {
+        currentPlayerPlayfabId = data.currentPlayerPlayfabId;
+        changed = true;
+      }
+      if (data.turnStep !== undefined && data.turnStep !== turnStep) {
+        turnStep = data.turnStep;
+        changed  = true;
+      }
+      if (gameStarted && changed) updateTurnUI();
+
+      // ── Dernière carte jouée ──
       if (data.lastPlayedCard?.card) {
         const lp  = data.lastPlayedCard;
         const uid = lp.card.uid;
@@ -211,20 +330,72 @@
     } catch (e) {}
   }
 
+  /* ─── MISE À JOUR UI SELON LE TOUR ─────────────────────── */
+  function updateTurnUI() {
+    const btn       = document.getElementById('confirm-btn');
+    const handDiv   = document.getElementById('hand');
+    const indicator = document.getElementById('turn-indicator');
+
+    const isMyTurn   = !currentPlayerPlayfabId || currentPlayerPlayfabId === myPlayfabId;
+    const lavaPlaced = turnStep === 'card';
+
+    if (!isMyTurn) {
+      // Pas mon tour du tout
+      setBlocked(btn, handDiv, '⏳ Pas ton tour');
+      if (stagedCard) cancelStage();
+      if (indicator) { indicator.textContent = "⏳ C'est le tour d'un autre joueur…"; indicator.style.color = '#7b7a9a'; }
+
+    } else if (!lavaPlaced) {
+      // Mon tour, mais Unity n'a pas encore placé la lave
+      setBlocked(btn, handDiv, '🌋 Place ta lave dans Unity');
+      if (indicator) { indicator.textContent = "🌋 Place d'abord ta lave dans Unity !"; indicator.style.color = '#f5a623'; }
+
+    } else {
+      // Mon tour ET lave placée → débloquer
+      setUnblocked(btn, handDiv);
+      if (indicator) {
+        indicator.textContent = "✅ Joue ta carte !";
+        indicator.style.color = '#4caf50';
+        setTimeout(() => { if (indicator) indicator.textContent = ''; }, 3000);
+      }
+    }
+  }
+
+  function setBlocked(btn, handDiv, label) {
+    btn.disabled    = true;
+    btn.textContent = label;
+    btn.classList.add('btn-disabled');
+  }
+
+  function setUnblocked(btn, handDiv) {
+    btn.disabled    = false;
+    btn.textContent = 'Jouer la carte';
+    btn.classList.remove('btn-disabled');
+    handDiv.classList.remove('hand-disabled');
+    // Re-rendre la zone si une carte était staged pendant le blocage
+    if (stagedCard) renderPlayZone();
+  }
+
   /* ─── DÉBUT DE PARTIE ───────────────────────────────────── */
   function startGame(data) {
     hide('wait-screen');
+    hide('color-screen');
     show('game-screen', 'flex');
     show('game-banner', 'flex');
     setTimeout(() => hide('game-banner'), 4000);
+
+    // Sync état initial
+    if (data.currentPlayerPlayfabId !== undefined) currentPlayerPlayfabId = data.currentPlayerPlayfabId;
+    if (data.turnStep !== undefined)               turnStep               = data.turnStep;
 
     const me = data.players?.find(p => p.playfabId === myPlayfabId);
     myHand = (me?.hand?.length) ? me.hand : drawLocalCards(5);
     renderPlayZone();
     renderHand();
+    updateTurnUI();
   }
 
-  /* Mapping nom de carte → nom de fichier image (les fichiers n'ont pas le 'e' final) */
+  /* Mapping nom de carte → nom de fichier image */
   const IMG_FALLBACKS = {
     'lave_3_verticale':   'Lave_3_vertical',
     'lave_3_horizontale': 'lave_3_horizontal',
@@ -260,18 +431,23 @@
     return div;
   }
 
-  /* ─── SÉLECTIONNER UNE CARTE (clic ou drop) ─────────────── */
+  /* ─── SÉLECTIONNER UNE CARTE ────────────────────────────── */
   function stageCard(card) {
+    if (!canPlay()) {
+      const msg = (!currentPlayerPlayfabId || currentPlayerPlayfabId === myPlayfabId)
+        ? "🌋 Place ta lave dans Unity d'abord !"
+        : "⛔ Attends ton tour !";
+      showGameMsg(msg, '#e94560');
+      setTimeout(() => showGameMsg('', ''), 2000);
+      return;
+    }
     const prev = stagedCard;
     stagedCard = card;
     renderPlayZone();
-
-    // Restaure l'ancienne carte dans la main (si différente)
     if (prev && prev.uid !== card.uid) {
       const el = handElements.get(prev.uid);
       if (el) el.classList.remove('hand-hidden');
     }
-    // Collapse la nouvelle carte sélectionnée
     const el = handElements.get(card.uid);
     if (el) el.classList.add('hand-hidden');
   }
@@ -296,14 +472,12 @@
     gapEl = null;
   }
 
-  /* Place la carte de la zone à la position du gap dans la main */
   function placeZoneCardAtGap(fromUid, toUid) {
     const fromIdx = myHand.findIndex(c => c.uid === fromUid);
     if (fromIdx !== -1) {
       const [moved] = myHand.splice(fromIdx, 1);
-      if (toUid === '__end__') {
-        myHand.push(moved);
-      } else {
+      if (toUid === '__end__') { myHand.push(moved); }
+      else {
         const toIdx = myHand.findIndex(c => c.uid === toUid);
         toIdx === -1 ? myHand.push(moved) : myHand.splice(toIdx, 0, moved);
       }
@@ -313,19 +487,14 @@
       gapEl.parentNode.insertBefore(handEl, toUid === '__end__' ? gapEl.nextSibling : gapEl);
       removeHandGap();
       handEl.classList.remove('hand-hidden', 'dragging');
-    } else {
-      removeHandGap();
-    }
+    } else { removeHandGap(); }
     dragPreviewTarget = null;
     stagedCard = null;
     renderPlayZone();
   }
 
-  /* Calcule le uid cible basé sur les positions stables (enregistrées au dragstart) */
   function resolveHandTarget(clientX) {
-    for (const pos of handCardPositions) {
-      if (clientX < pos.cx) return pos.uid;
-    }
+    for (const pos of handCardPositions) { if (clientX < pos.cx) return pos.uid; }
     return '__end__';
   }
 
@@ -333,10 +502,9 @@
     const fromIdx = myHand.findIndex(c => c.uid === fromUid);
     if (fromIdx === -1) { removeHandGap(); dragPreviewTarget = null; return; }
     const [moved] = myHand.splice(fromIdx, 1);
-    if (toUid === '__end__') {
-      myHand.push(moved);
-    } else {
-      const toIdx = myHand.findIndex(c => c.uid === toUid); // findIndex après splice = correct
+    if (toUid === '__end__') { myHand.push(moved); }
+    else {
+      const toIdx = myHand.findIndex(c => c.uid === toUid);
       toIdx === -1 ? myHand.push(moved) : myHand.splice(toIdx, 0, moved);
     }
     const movedEl = handElements.get(fromUid);
@@ -344,10 +512,7 @@
       gapEl.parentNode.insertBefore(movedEl, toUid === '__end__' ? gapEl.nextSibling : gapEl);
       removeHandGap();
       movedEl.classList.remove('dragging', 'hand-hidden');
-    } else {
-      removeHandGap();
-      renderHand();
-    }
+    } else { removeHandGap(); renderHand(); }
     dragPreviewTarget = null;
   }
 
@@ -355,15 +520,13 @@
     const prev = stagedCard;
     stagedCard = null;
     renderPlayZone();
-
-    // Réouvre le slot de la carte dans la main
     if (prev) {
       const el = handElements.get(prev.uid);
       if (el) el.classList.remove('hand-hidden');
     }
   }
 
-  /* ─── HELPER TOUCH DRAG : clone qui suit le doigt ───────── */
+  /* ─── HELPER TOUCH DRAG ─────────────────────────────────── */
   function getHandCardSize() {
     const sample = document.querySelector('#hand .card:not(.hand-hidden):not(.dragging)');
     return sample ? sample.offsetWidth : 90;
@@ -374,19 +537,13 @@
     const size = forceSize ?? rect.width;
     touchDragEl = sourceDiv.cloneNode(true);
     touchDragEl.style.cssText = [
-      'position:fixed',
-      `width:${size}px`,
-      `height:${size}px`,
-      'opacity:0.92',
-      'z-index:1000',
-      'pointer-events:none',
-      'transform:scale(1.1) rotate(-3deg)',
-      'transform-origin:center center',
+      'position:fixed', `width:${size}px`, `height:${size}px`,
+      'opacity:0.92', 'z-index:1000', 'pointer-events:none',
+      'transform:scale(1.1) rotate(-3deg)', 'transform-origin:center center',
       `border-radius:${getComputedStyle(sourceDiv).borderRadius}`,
       `left:${rect.left + rect.width / 2 - size / 2}px`,
       `top:${rect.top  + rect.height / 2 - size / 2}px`,
-      'transition:none',
-      'box-shadow:0 24px 50px rgba(0,0,0,0.7)',
+      'transition:none', 'box-shadow:0 24px 50px rgba(0,0,0,0.7)',
     ].join(';');
     document.body.appendChild(touchDragEl);
   }
@@ -420,23 +577,18 @@
       div.style.animationDelay = `${i * 0.06}s`;
       div.draggable = true;
 
-      // Si cette carte est déjà sélectionnée, on la cache sans animation
       if (stagedCard && stagedCard.uid === card.uid) {
         div.classList.add('hand-hidden');
         div.style.animation = 'none';
       }
 
-      /* ── CLIC → stage direct ── */
       div.addEventListener('click', () => stageCard(card));
 
-      /* ── DRAG SOURIS ── */
       div.addEventListener('dragstart', (e) => {
-        draggedCard = card;
-        dragSource  = 'hand';
-        dropHandled = false;
+        if (!canPlay()) { e.preventDefault(); return; }
+        draggedCard = card; dragSource = 'hand'; dropHandled = false;
         e.dataTransfer.setDragImage(div, div.offsetWidth / 2, div.offsetHeight / 2);
         e.dataTransfer.effectAllowed = 'move';
-        // Enregistre les centres X des autres cartes AVANT tout décalage
         handCardPositions = [];
         handElements.forEach((el, uid) => {
           if (uid !== card.uid && !el.classList.contains('hand-hidden')) {
@@ -449,31 +601,20 @@
       });
       div.addEventListener('dragend', () => {
         div.classList.remove('dragging');
-        removeHandGap();
-        dragPreviewTarget = null;
-        draggedCard = null;
-        dragSource  = null;
-        dropHandled = false;
+        removeHandGap(); dragPreviewTarget = null;
+        draggedCard = null; dragSource = null; dropHandled = false;
       });
-
       div.addEventListener('drop', (e) => {
         if (dragSource === 'hand' && draggedCard && dragPreviewTarget) {
-          e.preventDefault();
-          e.stopPropagation();
-          dropHandled = true;
+          e.preventDefault(); e.stopPropagation(); dropHandled = true;
           placeCardAtGap(draggedCard.uid, dragPreviewTarget);
         }
       });
 
-      /* ── DRAG TACTILE ── */
       div.addEventListener('touchstart', (e) => {
         const t = e.touches[0];
-        touchStartX      = t.clientX;
-        touchStartY      = t.clientY;
-        touchDragStarted = false;
-        touchDragCard    = card;
-        touchDragSource  = 'hand';
-        // Enregistre les centres X des autres cartes AVANT tout décalage
+        touchStartX = t.clientX; touchStartY = t.clientY;
+        touchDragStarted = false; touchDragCard = card; touchDragSource = 'hand';
         handCardPositions = [];
         handElements.forEach((el, uid) => {
           if (uid !== card.uid && !el.classList.contains('hand-hidden')) {
@@ -487,10 +628,10 @@
 
       div.addEventListener('touchmove', (e) => {
         if (!touchDragCard) return;
-        const t    = e.touches[0];
+        const t = e.touches[0];
         const dist = Math.hypot(t.clientX - touchStartX, t.clientY - touchStartY);
-
         if (!touchDragStarted && dist > 10) {
+          if (!canPlay()) { touchDragCard = null; div.classList.remove('lifting'); return; }
           touchDragStarted = true;
           div.classList.remove('lifting');
           startTouchClone(div);
@@ -502,44 +643,26 @@
           const overZone = isOverZone(t.clientX, t.clientY);
           document.getElementById('play-zone').classList.toggle('drag-over', overZone);
           if (!overZone) {
-            const handAreaRect = document.querySelector('.hand-area').getBoundingClientRect();
-            const inHand = t.clientY >= handAreaRect.top && t.clientY <= handAreaRect.bottom
-                        && t.clientX >= handAreaRect.left && t.clientX <= handAreaRect.right;
-            if (inHand) {
-              showHandGap(resolveHandTarget(t.clientX));
-            } else {
-              removeHandGap(); dragPreviewTarget = null;
-            }
-          } else {
-            removeHandGap(); dragPreviewTarget = null;
-          }
+            const hr = document.querySelector('.hand-area').getBoundingClientRect();
+            const inHand = t.clientY >= hr.top && t.clientY <= hr.bottom && t.clientX >= hr.left && t.clientX <= hr.right;
+            if (inHand) showHandGap(resolveHandTarget(t.clientX));
+            else { removeHandGap(); dragPreviewTarget = null; }
+          } else { removeHandGap(); dragPreviewTarget = null; }
         }
       }, { passive: false });
 
       div.addEventListener('touchend', (e) => {
         div.classList.remove('lifting');
-        if (!touchDragStarted) {
-          touchDragCard = null; touchDragSource = null; return;
-        }
+        if (!touchDragStarted) { touchDragCard = null; touchDragSource = null; return; }
         const t = e.changedTouches[0];
-        removeTouchClone();
-        div.classList.remove('dragging');
+        removeTouchClone(); div.classList.remove('dragging');
         document.getElementById('play-zone').classList.remove('drag-over');
-
         if (isOverZone(t.clientX, t.clientY)) {
-          removeHandGap();
-          dragPreviewTarget = null;
-          stageCard(touchDragCard);
+          removeHandGap(); dragPreviewTarget = null; stageCard(touchDragCard);
         } else if (gapEl && dragPreviewTarget) {
           placeCardAtGap(touchDragCard.uid, dragPreviewTarget);
-        } else {
-          removeHandGap();
-          dragPreviewTarget = null;
-        }
-
-        touchDragCard    = null;
-        touchDragSource  = null;
-        touchDragStarted = false;
+        } else { removeHandGap(); dragPreviewTarget = null; }
+        touchDragCard = null; touchDragSource = null; touchDragStarted = false;
       }, { passive: true });
 
       handElements.set(card.uid, div);
@@ -551,33 +674,18 @@
   function initPlayZone() {
     const zone     = document.getElementById('play-zone');
     const handArea = document.querySelector('.hand-area');
-
-    // Créer l'overlay d'effets élémentaires (persistant)
     const fx = document.createElement('div');
     fx.id = 'zone-fx';
     zone.appendChild(fx);
 
-    /* Zone centrale : accepte les cartes de la main */
     zone.addEventListener('dragover', (e) => {
-      if (dragSource === 'hand') {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        zone.classList.add('drag-over');
-      }
+      if (dragSource === 'hand') { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; zone.classList.add('drag-over'); }
     });
-    zone.addEventListener('dragleave', (e) => {
-      if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over');
-    });
+    zone.addEventListener('dragleave', (e) => { if (!zone.contains(e.relatedTarget)) zone.classList.remove('drag-over'); });
     zone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      zone.classList.remove('drag-over');
-      if (dragSource === 'hand' && draggedCard) {
-        dropHandled = true;
-        stageCard(draggedCard);
-      }
+      e.preventDefault(); zone.classList.remove('drag-over');
+      if (dragSource === 'hand' && draggedCard) { dropHandled = true; stageCard(draggedCard); }
     });
-
-    /* Zone basse (main) : accepte la carte posée pour l'annuler */
     handArea.addEventListener('dragover', (e) => {
       if (dragSource === 'zone') { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }
     });
@@ -589,35 +697,17 @@
         else cancelStage();
       }
     });
-
-    /* Listener global : calcule la cible sur les positions stables → zéro flickering */
     document.addEventListener('dragover', (e) => {
       if (dragSource !== 'hand' && dragSource !== 'zone') return;
-
-      const handAreaRect = document.querySelector('.hand-area').getBoundingClientRect();
-      const inHand = e.clientY >= handAreaRect.top && e.clientY <= handAreaRect.bottom
-                  && e.clientX >= handAreaRect.left && e.clientX <= handAreaRect.right;
-
-      if (dragSource === 'hand' && isOverZone(e.clientX, e.clientY)) {
-        removeHandGap(); dragPreviewTarget = null; return;
-      }
-
-      if (inHand) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        showHandGap(resolveHandTarget(e.clientX));
-      } else {
-        removeHandGap(); dragPreviewTarget = null;
-      }
+      const hr = document.querySelector('.hand-area').getBoundingClientRect();
+      const inHand = e.clientY >= hr.top && e.clientY <= hr.bottom && e.clientX >= hr.left && e.clientX <= hr.right;
+      if (dragSource === 'hand' && isOverZone(e.clientX, e.clientY)) { removeHandGap(); dragPreviewTarget = null; return; }
+      if (inHand) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; showHandGap(resolveHandTarget(e.clientX)); }
+      else { removeHandGap(); dragPreviewTarget = null; }
     });
-
-    /* Drop sur l'espace vide du conteneur #hand */
-    const handDiv = document.getElementById('hand');
-    handDiv.addEventListener('drop', (e) => {
+    document.getElementById('hand').addEventListener('drop', (e) => {
       if (dragSource === 'hand' && draggedCard && dragPreviewTarget) {
-        e.preventDefault();
-        dropHandled = true;
-        placeCardAtGap(draggedCard.uid, dragPreviewTarget);
+        e.preventDefault(); dropHandled = true; placeCardAtGap(draggedCard.uid, dragPreviewTarget);
       }
     });
   }
@@ -625,21 +715,16 @@
   function renderPlayZone() {
     const zone = document.getElementById('play-zone');
     const btn  = document.getElementById('confirm-btn');
-    const fx   = document.getElementById('zone-fx'); // préserver avant de vider
+    const fx   = document.getElementById('zone-fx');
 
     if (!stagedCard) {
       zone.innerHTML = '';
-      if (fx) {
-        fx.className = '';
-        zone.classList.remove('zone-shake');
-        zone.appendChild(fx);
-      }
+      if (fx) { fx.className = ''; zone.classList.remove('zone-shake'); zone.appendChild(fx); }
       if (lastPlayedCardData) {
         const imgNom = IMG_FALLBACKS[lastPlayedCardData.nom] ?? lastPlayedCardData.nom;
         const ghostImg = document.createElement('img');
         ghostImg.className = 'zone-ghost-img';
         ghostImg.src = `${MEDIAS_PATH}${imgNom}${IMG_EXT}`;
-        ghostImg.alt = '';
         ghostImg.onerror = () => { ghostImg.style.display = 'none'; };
         zone.appendChild(ghostImg);
         const ghostOverlay = document.createElement('div');
@@ -664,7 +749,6 @@
     div.classList.add('staged');
     div.draggable = true;
 
-    /* ── Face arrière ── */
     const backFace = document.createElement('div');
     backFace.className = 'card-back-face';
     const backImg = document.createElement('img');
@@ -673,15 +757,11 @@
     backFace.appendChild(backImg);
     div.appendChild(backFace);
 
-    /* Clic → annuler sauf si swipe horizontal */
     let wasSwiping = false;
     div.addEventListener('click', () => { if (!wasSwiping) cancelStage(); });
 
-    /* ── DRAG SOURIS depuis la zone → vers la main ── */
     div.addEventListener('dragstart', (e) => {
-      draggedCard = stagedCard;
-      dragSource  = 'zone';
-      dropHandled = false;
+      draggedCard = stagedCard; dragSource = 'zone'; dropHandled = false;
       const s = getHandCardSize();
       const ghost = div.cloneNode(true);
       ghost.style.cssText = `position:fixed;width:${s}px;height:${s}px;top:-9999px;left:-9999px;border-radius:14px;overflow:hidden;pointer-events:none;`;
@@ -689,7 +769,6 @@
       e.dataTransfer.setDragImage(ghost, s / 2, s / 2);
       requestAnimationFrame(() => document.body.removeChild(ghost));
       e.dataTransfer.effectAllowed = 'move';
-      // Enregistre les positions stables de la main
       handCardPositions = [];
       handElements.forEach((el, uid) => {
         if (!el.classList.contains('hand-hidden')) {
@@ -704,67 +783,36 @@
       zone.classList.remove('drag-out');
       removeHandGap(); dragPreviewTarget = null;
       if (!dropHandled) cancelStage();
-      draggedCard = null;
-      dragSource  = null;
-      dropHandled = false;
+      draggedCard = null; dragSource = null; dropHandled = false;
     });
 
-    /* ── TOUCH EVENTS : spin horizontal / drag vertical ── */
-    let spinAngle    = 0;
-    let spinMode     = null;   // null | 'spin' | 'drag'
-    let spinLastX    = 0;
-    let spinLastTime = 0;
-    let spinVelocity = 0;
-    let cancelSpin   = null;
+    let spinAngle = 0, spinMode = null, spinLastX = 0, spinLastTime = 0, spinVelocity = 0, cancelSpin = null;
 
     div.addEventListener('touchstart', (e) => {
-      const t          = e.touches[0];
-      touchStartX      = spinLastX = t.clientX;
-      touchStartY      = t.clientY;
-      spinLastTime     = Date.now();
-      spinVelocity     = 0;
-      spinMode         = null;
-      wasSwiping       = false;
-      touchDragStarted = false;
-      touchDragCard    = stagedCard;
-      touchDragSource  = 'zone';
-      // Clear the cardDrop CSS animation so its fill-mode doesn't override
-      // the inline style.transform we set during the spin.
-      // Keep the current spinAngle so the card doesn't flash back to front.
-      div.style.animation = 'none';
-      div.style.transform  = `rotateY(${spinAngle}deg)`;
+      const t = e.touches[0];
+      touchStartX = spinLastX = t.clientX; touchStartY = t.clientY;
+      spinLastTime = Date.now(); spinVelocity = 0; spinMode = null; wasSwiping = false;
+      touchDragStarted = false; touchDragCard = stagedCard; touchDragSource = 'zone';
+      div.style.animation = 'none'; div.style.transform = `rotateY(${spinAngle}deg)`;
       if (cancelSpin) { cancelSpin(); cancelSpin = null; }
     }, { passive: true });
 
     div.addEventListener('touchmove', (e) => {
-      const t  = e.touches[0];
-      const dx = t.clientX - touchStartX;
-      const dy = t.clientY - touchStartY;
-
-      // Bias strongly toward spin: only enter drag if vertical movement is
-      // clearly dominant (1.5× horizontal). Prevents accidental drag mode
-      // from the natural diagonal drift of a finger swipe on Android.
+      const t = e.touches[0];
+      const dx = t.clientX - touchStartX, dy = t.clientY - touchStartY;
       if (spinMode === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
         spinMode = Math.abs(dy) > Math.abs(dx) * 1.5 ? 'drag' : 'spin';
       }
-
       if (spinMode === 'spin') {
-        e.preventDefault();   // safe: listener is { passive: false }
-        wasSwiping = true;
-        const now  = Date.now();
-        const dt   = now - spinLastTime || 1;
-        const move = t.clientX - spinLastX;
-        spinVelocity = move / dt;
-        spinAngle   += move * 0.55;
+        e.preventDefault(); wasSwiping = true;
+        const now = Date.now(), dt = now - spinLastTime || 1, move = t.clientX - spinLastX;
+        spinVelocity = move / dt; spinAngle += move * 0.55;
         div.style.transform = `rotateY(${spinAngle}deg)`;
-        spinLastX    = t.clientX;
-        spinLastTime = now;
-
+        spinLastX = t.clientX; spinLastTime = now;
       } else if (spinMode === 'drag') {
         const dist = Math.hypot(dx, dy);
         if (!touchDragStarted && dist > 10) {
           touchDragStarted = true;
-          // Enregistre les positions stables de la main
           handCardPositions = [];
           handElements.forEach((el, uid) => {
             if (!el.classList.contains('hand-hidden')) {
@@ -773,19 +821,14 @@
             }
           });
           handCardPositions.sort((a, b) => a.cx - b.cx);
-          startTouchClone(div, getHandCardSize());
-          zone.classList.add('drag-out');
+          startTouchClone(div, getHandCardSize()); zone.classList.add('drag-out');
         }
         if (touchDragStarted) {
           moveTouchClone(t.clientX, t.clientY);
-          const handAreaRect = document.querySelector('.hand-area').getBoundingClientRect();
-          const inHand = t.clientY >= handAreaRect.top && t.clientY <= handAreaRect.bottom
-                      && t.clientX >= handAreaRect.left && t.clientX <= handAreaRect.right;
-          if (inHand) {
-            showHandGap(resolveHandTarget(t.clientX));
-          } else {
-            removeHandGap(); dragPreviewTarget = null;
-          }
+          const hr = document.querySelector('.hand-area').getBoundingClientRect();
+          const inHand = t.clientY >= hr.top && t.clientY <= hr.bottom && t.clientX >= hr.left && t.clientX <= hr.right;
+          if (inHand) showHandGap(resolveHandTarget(t.clientX));
+          else { removeHandGap(); dragPreviewTarget = null; }
           zone.classList.toggle('drag-over', isOverZone(t.clientX, t.clientY));
         }
       }
@@ -793,35 +836,22 @@
 
     div.addEventListener('touchend', (e) => {
       const t = e.changedTouches[0];
-
       if (spinMode === 'spin') {
-        const speed = Math.abs(spinVelocity);
-        const dir   = Math.sign(spinVelocity) || 1;
-        // Minimum 360° so even a tiny flick does at least one full rotation.
+        const speed = Math.abs(spinVelocity), dir = Math.sign(spinVelocity) || 1;
         const extraAngle = dir * Math.max(180, speed * 900);
         const duration   = Math.max(350, Math.min(1800, speed * 1000));
-        const raw        = spinAngle + extraAngle;
-        // Always land on the front face (multiple of 360°).
-        let snapped      = Math.round(raw / 360) * 360;
-        // Guard: if rounding collapsed back to the same side, push one more turn.
+        const raw = spinAngle + extraAngle;
+        let snapped = Math.round(raw / 360) * 360;
         if ((snapped - spinAngle) * dir <= 0) snapped += dir * 360;
-        const from       = spinAngle;
-        cancelSpin = animateSpinTo(div, from, snapped, duration, () => { spinAngle = snapped; cancelSpin = null; });
-
+        cancelSpin = animateSpinTo(div, spinAngle, snapped, duration, () => { spinAngle = snapped; cancelSpin = null; });
       } else if (spinMode === 'drag' && touchDragStarted) {
-        removeTouchClone();
-        zone.classList.remove('drag-out', 'drag-over');
+        removeTouchClone(); zone.classList.remove('drag-out', 'drag-over');
         if (!isOverZone(t.clientX, t.clientY)) {
           if (dragPreviewTarget && touchDragCard) placeZoneCardAtGap(touchDragCard.uid, dragPreviewTarget);
           else cancelStage();
-        } else {
-          removeHandGap(); dragPreviewTarget = null;
-        }
+        } else { removeHandGap(); dragPreviewTarget = null; }
       }
-      touchDragCard    = null;
-      touchDragSource  = null;
-      touchDragStarted = false;
-      spinMode         = null;
+      touchDragCard = null; touchDragSource = null; touchDragStarted = false; spinMode = null;
     }, { passive: true });
 
     div.addEventListener('touchcancel', () => {
@@ -833,44 +863,39 @@
     zone.appendChild(div);
     btn.style.visibility = 'visible';
     btn.style.pointerEvents = '';
+
+    // Si pas le droit de jouer, bouton reste bloqué même avec carte en zone
+    if (!canPlay()) {
+      const isMyTurn = !currentPlayerPlayfabId || currentPlayerPlayfabId === myPlayfabId;
+      btn.disabled    = true;
+      btn.textContent = isMyTurn ? '🌋 Place ta lave dans Unity' : '⏳ Pas ton tour';
+      btn.classList.add('btn-disabled');
+    }
+
     triggerZoneFx(stagedCard);
   }
 
   /* ─── EFFETS ÉLÉMENTAIRES ───────────────────────────────── */
   function triggerZoneFx(card) {
-    const fx   = document.getElementById('zone-fx');
+    const fx = document.getElementById('zone-fx');
     const zone = document.getElementById('play-zone');
     if (!fx) return;
-
-    // Réinitialiser les animations précédentes
-    fx.className = '';
-    zone.classList.remove('zone-shake');
-    void fx.offsetWidth; // force reflow pour relancer les keyframes
-
+    fx.className = ''; zone.classList.remove('zone-shake'); void fx.offsetWidth;
     const nom = card.nom;
     if      (nom.startsWith('lave'))   { fx.className = 'fx-lava'; }
     else if (nom.startsWith('eau'))    { fx.className = 'fx-eau'; }
-    else if (nom.startsWith('bloque')) {
-      fx.className = 'fx-bloque';
-      zone.classList.add('zone-shake');
-      setTimeout(() => zone.classList.remove('zone-shake'), 600);
-    }
+    else if (nom.startsWith('bloque')) { fx.className = 'fx-bloque'; zone.classList.add('zone-shake'); setTimeout(() => zone.classList.remove('zone-shake'), 600); }
     else if (nom.startsWith('vent'))   { fx.className = 'fx-vent'; }
   }
 
   /* ─── SPIN INERTIE ──────────────────────────────────────── */
-  // duration is now passed explicitly so fast flips spin longer.
-  // Exponential ease-out (Expo Out) mimics friction: starts fast,
-  // decelerates sharply — exactly like a fidget spinner.
   function animateSpinTo(el, from, to, duration, onDone) {
-    const start = performance.now();
-    let raf;
+    const start = performance.now(); let raf;
     function step(now) {
-      const t     = Math.min((now - start) / duration, 1);
-      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);  // Expo Out
+      const t = Math.min((now - start) / duration, 1);
+      const eased = t === 1 ? 1 : 1 - Math.pow(2, -10 * t);
       el.style.transform = `rotateY(${from + (to - from) * eased}deg)`;
-      if (t < 1) { raf = requestAnimationFrame(step); }
-      else        { if (onDone) onDone(); }
+      if (t < 1) { raf = requestAnimationFrame(step); } else { if (onDone) onDone(); }
     }
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
@@ -879,51 +904,40 @@
   /* ─── JOUER LA CARTE ────────────────────────────────────── */
   async function confirmPlay() {
     if (!stagedCard) return;
-    const card = stagedCard;
-
-    // Animation de sortie avant d'envoyer
-    const stagedEl = document.querySelector('#play-zone .card.staged');
-    if (stagedEl) {
-      stagedEl.classList.add('playing-out');
-      await new Promise(r => setTimeout(r, 380));
+    if (!canPlay()) {
+      const isMyTurn = !currentPlayerPlayfabId || currentPlayerPlayfabId === myPlayfabId;
+      showGameMsg(isMyTurn ? "🌋 Place ta lave dans Unity d'abord !" : "⛔ C'est pas ton tour !", '#e94560');
+      setTimeout(() => showGameMsg('', ''), 2000);
+      return;
     }
 
-    stagedCard = null;
-    renderPlayZone();
+    const card = stagedCard;
+    const stagedEl = document.querySelector('#play-zone .card.staged');
+    if (stagedEl) { stagedEl.classList.add('playing-out'); await new Promise(r => setTimeout(r, 380)); }
+    stagedCard = null; renderPlayZone();
 
     const btn = document.getElementById('confirm-btn');
-    btn.disabled    = true;
-    btn.textContent = 'Envoi…';
+    btn.disabled = true; btn.textContent = 'Envoi…';
 
     try {
       const res  = await fetch(FUNCTION_URL, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ action: 'playCard', cardUid: card.uid, playfabId: myPlayfabId })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'playCard', cardUid: card.uid, playfabId: myPlayfabId })
       });
       const data = await res.json();
-
-      btn.disabled    = false;
-      btn.textContent = 'Jouer la carte';
+      btn.disabled = false; btn.textContent = 'Jouer la carte';
 
       if (res.ok) {
-        myHand = data.hand;
-        lastPlayedCardData = card;
-        renderHand();
+        myHand = data.hand; lastPlayedCardData = card; renderHand();
         showGameMsg(`✅ ${data.playedCard.nom.replace(/_/g,' ')} jouée !`, '#4caf50');
         setTimeout(() => showGameMsg('', ''), 2200);
       } else {
-        stagedCard = card;
-        renderPlayZone();
-        renderHand();
+        stagedCard = card; renderPlayZone(); renderHand();
         showGameMsg('Erreur : ' + JSON.stringify(data), '#e94560');
       }
     } catch (err) {
-      btn.disabled    = false;
-      btn.textContent = 'Jouer la carte';
-      stagedCard = card;
-      renderPlayZone();
-      renderHand();
+      btn.disabled = false; btn.textContent = 'Jouer la carte';
+      stagedCard = card; renderPlayZone(); renderHand();
       showGameMsg('Erreur réseau', '#e94560');
     }
   }
@@ -937,22 +951,10 @@
   }
 
   /* ─── HELPERS UI ────────────────────────────────────────── */
-  function show(id, display = 'block') {
-    const el = document.getElementById(id);
-    if (el) el.style.display = display;
-  }
-  function hide(id) {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  }
-  function showLoginMsg(msg, color) {
-    const el = document.getElementById('login-msg');
-    if (el) { el.textContent = msg; el.style.color = color; }
-  }
-  function showGameMsg(msg, color) {
-    const el = document.getElementById('game-msg');
-    if (el) { el.textContent = msg; el.style.color = color; }
-  }
+  function show(id, display = 'block') { const el = document.getElementById(id); if (el) el.style.display = display; }
+  function hide(id) { const el = document.getElementById(id); if (el) el.style.display = 'none'; }
+  function showLoginMsg(msg, color) { const el = document.getElementById('login-msg'); if (el) { el.textContent = msg; el.style.color = color; } }
+  function showGameMsg(msg, color)  { const el = document.getElementById('game-msg');  if (el) { el.textContent = msg; el.style.color = color; } }
 </script>
 </body>
 </html>
